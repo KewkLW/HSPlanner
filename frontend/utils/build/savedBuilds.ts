@@ -393,6 +393,47 @@ export function setBuildSeason(buildId: string, season: string): boolean {
   return true
 }
 
+/**
+ * Atomically rewrites every profile before changing a build-scoped season.
+ * Callers prepare the migrated snapshots first so one unreadable profile can
+ * never leave the library with a mixture of old- and new-season profiles.
+ */
+export function migrateBuildProfilesToSeason(
+  buildId: string,
+  season: string,
+  snapshots: ReadonlyMap<string, BuildSnapshot>,
+): SavedBuild | null {
+  const library = readLibrary()
+  const index = library.builds.findIndex((build) => build.id === buildId)
+  if (index === -1) return null
+  const build = library.builds[index]!
+  if (
+    snapshots.size !== build.profiles.length ||
+    build.profiles.some((profile) => !snapshots.has(profile.id))
+  ) {
+    return null
+  }
+
+  const now = new Date().toISOString()
+  const profiles = build.profiles.map((profile) => ({
+    ...profile,
+    code: encodeBuildToShare(snapshots.get(profile.id)!, undefined, season),
+    updatedAt: now,
+  }))
+  const activeSnapshot = snapshots.get(build.activeProfileId)
+  const migrated: SavedBuild = {
+    ...build,
+    classId: activeSnapshot?.classId ?? build.classId,
+    profiles,
+    season,
+    updatedAt: now,
+  }
+  const builds = [...library.builds]
+  builds[index] = migrated
+  writeLibrary({ ...library, builds })
+  return migrated
+}
+
 export function getActiveProfile(b: SavedBuild): SavedProfile | null {
   return (
     b.profiles.find((p) => p.id === b.activeProfileId) ?? b.profiles[0] ?? null
@@ -407,6 +448,7 @@ export function createBuild(
   folderId: string | null = null,
   season: string = activeSeasonId,
   stash: StashEntry[] = [],
+  profileCode?: string,
 ): SavedBuild {
   const library = readLibrary()
   if (library.builds.length >= MAX_BUILDS) {
@@ -416,7 +458,10 @@ export function createBuild(
   }
   const now = new Date().toISOString()
   const profileId = newId('p')
-  const code = encodeBuildToShare(snapshot)
+  const code =
+    profileCode && profileCode.length <= MAX_CODE_LENGTH
+      ? profileCode
+      : encodeBuildToShare(snapshot)
   const validFolderId =
     folderId !== null && library.folders.some((f) => f.id === folderId)
       ? folderId

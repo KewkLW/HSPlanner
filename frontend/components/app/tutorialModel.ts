@@ -33,13 +33,13 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     section: 'tree',
     target: 'view',
-    title: 'Talent Tree',
-    body: 'Left-click a node to add points, right-click to remove them. Drag to pan, scroll to zoom — and Ctrl+Z / Ctrl+Y undo and redo any change.',
+    title: 'Incarnation',
+    body: 'Left-click an incarnation node to add points, right-click to remove them. Drag to pan, scroll to zoom — and Ctrl+Z / Ctrl+Y undo and redo any change.',
   },
   {
     section: 'tree',
     target: 'tree-search',
-    title: 'Tree Search',
+    title: 'Incarnation Search',
     body: 'Find nodes by name or internal #id — Ctrl+F focuses it from anywhere in this tab. Fit and Reset sit next to it, and Suggest recommends nodes to take next.',
   },
   {
@@ -48,19 +48,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     act: '[data-tour="tree-suggest"]',
     undo: '[data-tour="suggest-modal"] [aria-label="Close"]',
     title: 'Suggest',
-    body: 'Set a point budget between 1 to 200 and let the engine propose valuable incarnation nodes. Suggestions preview on the tree before you apply them.',
+    body: 'Set a point budget up to the points left at your Hero Level and let the engine propose valuable incarnation nodes. Suggestions preview on the tree before you apply them.',
   },
   {
     section: 'ether',
     target: 'view',
     title: 'Ether Realm',
-    body: 'A second tree with its own point pool. Same controls as the talent tree, including Ctrl+F search.',
+    body: 'A second tree with its own point pool. It uses the same controls as Incarnation, including Ctrl+F search.',
   },
   {
     section: 'skills',
     target: 'view',
-    title: 'Skills',
-    body: 'The skill tree of your class: allocate ranks, expand subskills and mark the skills your build actively uses — damage numbers flow from here.',
+    title: 'Spec',
+    body: 'Your class skill tree: allocate ranks, expand subskills and mark the skills your build actively uses — damage numbers flow from here.',
   },
   {
     section: 'skills',

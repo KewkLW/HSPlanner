@@ -37,6 +37,49 @@ describe('auto-save engine', () => {
     expect(loadProfileSnapshot(buildId, profileId)?.level).toBe(50)
   })
 
+  it('auto-saves gear optimizer constraints', () => {
+    const { buildId, profileId } = saveFixtureBuild('Optimizer auto-save')
+    useBuild.getState().setGearOptimizerThreshold('stat:life', 25_000)
+    useBuild.getState().setGearOptimizerRarityFilter({
+      mode: 'at_least',
+      rarity: 'satanic',
+    })
+
+    vi.advanceTimersByTime(AUTO_SAVE_DEBOUNCE_MS + 1)
+
+    const snapshot = loadProfileSnapshot(buildId, profileId)
+    expect(snapshot?.gearOptimizerThresholds).toEqual({ 'stat:life': 25_000 })
+    expect(snapshot?.gearOptimizerRarityFilter).toEqual({
+      mode: 'at_least',
+      rarity: 'satanic',
+    })
+  })
+
+  it('auto-saves independent allocation banks and their active slots', () => {
+    const { buildId, profileId } = saveFixtureBuild('Loadout auto-save')
+    useBuild.getState().createSpecLoadout(3)
+    useBuild.setState({ skillRanks: { frost_orb: 30 } })
+    useBuild.getState().createIncarnationLoadout(1)
+    useBuild.getState().setHeroLevel(2)
+    useBuild.setState({ allocatedTreeNodes: new Set([12, 18]) })
+    useBuild.getState().createEtherLoadout(2)
+    useBuild.setState({ allocatedEtherNodes: new Set([7, 9]) })
+
+    vi.advanceTimersByTime(AUTO_SAVE_DEBOUNCE_MS + 1)
+
+    const snapshot = loadProfileSnapshot(buildId, profileId)
+    expect(snapshot?.activeSpecLoadoutIndex).toBe(3)
+    expect(snapshot?.specLoadouts?.[3]?.skillRanks).toEqual({ frost_orb: 30 })
+    expect(snapshot?.activeIncarnationLoadoutIndex).toBe(1)
+    expect([
+      ...(snapshot?.incarnationLoadouts?.[1]?.allocatedTreeNodes ?? []),
+    ]).toEqual([12, 18])
+    expect(snapshot?.activeEtherLoadoutIndex).toBe(2)
+    expect([
+      ...(snapshot?.etherLoadouts?.[2]?.allocatedEtherNodes ?? []),
+    ]).toEqual([7, 9])
+  })
+
   it('does not persist changes when auto-save is off', () => {
     const { buildId, profileId } = saveFixtureBuild('Auto Off')
     useSettings.setState({ autoSave: false })

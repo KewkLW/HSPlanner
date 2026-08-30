@@ -4,13 +4,24 @@ import { Panel } from './configPrimitives'
 import { classes, gameConfig, getClass } from '@data'
 import { attrPointsFor, finalAttributes, useBuild } from '../../store/build'
 import { allocationStep } from '../../utils/allocationStep'
+import {
+  incarnationPointsFor,
+  maxAllocatedIncarnationNodes,
+} from '../../utils/build/heroLevel'
 
 export default function CharacterBasics() {
   const classId = useBuild((s) => s.classId)
   const level = useBuild((s) => s.level)
+  const heroLevel = useBuild((s) => s.heroLevel)
   const allocated = useBuild((s) => s.allocated)
+  const allocatedTreeNodes = useBuild((s) => s.allocatedTreeNodes)
+  const incarnationLoadouts = useBuild((s) => s.incarnationLoadouts)
+  const activeIncarnationLoadoutIndex = useBuild(
+    (s) => s.activeIncarnationLoadoutIndex,
+  )
   const setClass = useBuild((s) => s.setClass)
   const setLevel = useBuild((s) => s.setLevel)
+  const setHeroLevel = useBuild((s) => s.setHeroLevel)
   const incAttr = useBuild((s) => s.incAttr)
   const decAttr = useBuild((s) => s.decAttr)
   const resetAttrs = useBuild((s) => s.resetAttrs)
@@ -20,10 +31,15 @@ export default function CharacterBasics() {
   const spent = Object.values(allocated).reduce((s, v) => s + v, 0)
   const total = attrPointsFor(level)
   const remaining = total - spent
+  const minimumHeroLevel = maxAllocatedIncarnationNodes({
+    allocatedTreeNodes,
+    incarnationLoadouts,
+    activeIncarnationLoadoutIndex,
+  })
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Panel title="Class" subtitle="The class this build is based on.">
           {classes.length === 0 ? (
             <p className="font-mono text-[12px] tracking-[0.04em] text-muted italic">
@@ -82,6 +98,34 @@ export default function CharacterBasics() {
               />
             </PanelInputWrap>
           </div>
+        </Panel>
+
+        <Panel
+          title="Hero Level"
+          subtitle="Sets your Incarnation point cap (1 point per Hero Level)."
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-faint">
+              {incarnationPointsFor(heroLevel)} points
+            </span>
+            <PanelInputWrap>
+              <input
+                type="number"
+                min={minimumHeroLevel}
+                step={1}
+                value={heroLevel}
+                onChange={(e) => setHeroLevel(Number(e.target.value))}
+                aria-label="Hero Level"
+                className="w-16 bg-transparent text-center font-mono text-[12px] tabular-nums text-accent-hot outline-none"
+              />
+            </PanelInputWrap>
+          </div>
+          {minimumHeroLevel > 0 && (
+            <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.12em] text-faint">
+              Minimum {minimumHeroLevel} while a saved Incarnation loadout uses
+              that many points.
+            </p>
+          )}
         </Panel>
       </div>
 

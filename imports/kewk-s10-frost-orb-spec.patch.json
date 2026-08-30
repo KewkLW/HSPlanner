@@ -1,0 +1,67 @@
+{
+  "buildId": "2b03372f-5aae-4039-91ab-615558784333",
+  "profileId": "de75d267-08a2-459b-93e9-c9eedee5bc23",
+  "season": "s10",
+  "patch": {
+    "incarnationLoadouts": [
+      {
+        "index": 0,
+        "nodes": [
+          27, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 95, 96, 127,
+          128, 203, 261, 262, 263, 264, 265, 266, 267, 268, 417, 422, 656,
+          657, 660, 661, 720, 792, 793, 794, 795, 796, 797, 798, 804, 884,
+          972, 973, 1074, 1075, 1076, 1328, 1329, 1330, 1331, 1332, 1413,
+          1414
+        ]
+      },
+      {
+        "index": 1,
+        "nodes": [
+          27, 28, 29, 30, 31, 32, 33, 39, 95, 96, 97, 98, 99, 127, 128,
+          267, 268, 329, 330, 331, 332, 333, 334, 335, 336, 337, 422, 720,
+          792, 793, 794, 795, 796, 797, 798, 804, 972, 973, 1005, 1006,
+          1007, 1008, 1009, 1328, 1329, 1330, 1331, 1332, 1413, 1414,
+          1422, 1423, 1424
+        ]
+      }
+    ],
+    "activeIncarnationLoadoutIndex": 0,
+    "etherLoadouts": [
+      {
+        "index": 0,
+        "nodes": [
+          81, 82, 83, 95, 96, 97, 98, 99, 100, 101, 105, 219, 433, 434,
+          435, 436, 441, 442, 443, 458, 459, 460
+        ]
+      },
+      {
+        "index": 2,
+        "nodes": [
+          36, 37, 38, 39, 40, 41, 45, 46, 47, 48, 152, 167, 168, 175,
+          279, 280, 281, 282, 494, 495
+        ]
+      }
+    ],
+    "activeEtherLoadoutIndex": 0,
+    "mercClassId": "merc_magister",
+    "mercSkillRanks": {
+      "elemental_intellect": 8,
+      "tome_of_power": 20,
+      "arcane_blast": 1,
+      "arcane_fire": 1,
+      "replenishing_touch": 1,
+      "magic_claw": 1,
+      "spellburn": 1,
+      "arcanes_blessing": 1,
+      "cosmic_bolt": 1,
+      "arcane_meteor": 1,
+      "manaflux": 20,
+      "reptillian_brain": 20,
+      "arcane_nova": 1,
+      "arcane_link": 1,
+      "arcane_barrage": 1,
+      "word_of_protection": 20,
+      "arcane_apocalypse": 1
+    }
+  }
+}

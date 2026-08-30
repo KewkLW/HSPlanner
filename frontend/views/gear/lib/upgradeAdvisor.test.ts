@@ -26,6 +26,17 @@ vi.mock('@data', () => ({
     ],
   },
   getItem: vi.fn(),
+  getSkillsByClass: vi.fn(() => [
+    {
+      id: 'skill-1',
+      classId: 'amazon',
+      name: 'Skill 1',
+      kind: 'active',
+      maxRank: 20,
+      ranks: [],
+      damagePerRank: [{ min: 1, max: 2 }],
+    },
+  ]),
 }))
 
 const mockRank = vi.mocked(rankSlotItemsNative)
@@ -38,7 +49,7 @@ function makeDeps(overrides: Partial<BuildPerformanceDeps> = {}): BuildPerforman
     level: 50,
     allocatedAttrs: {},
     inventory: {},
-    skillRanks: {},
+    skillRanks: { 'skill-1': 1 },
     subskillRanks: {},
     activeAuraId: null,
     activeBuffs: {},
@@ -69,11 +80,23 @@ beforeEach(() => {
 })
 
 describe('scanForUpgrades', () => {
-  it('returns empty without a main skill and never calls the engine', async () => {
-    const out = await scanForUpgrades(makeDeps({ activeSkillIds: [] }))
+  it('returns empty without an allocated damage skill and never calls the engine', async () => {
+    const out = await scanForUpgrades(
+      makeDeps({ activeSkillIds: [], skillRanks: {} }),
+    )
     expect(out.emptySlots).toHaveLength(0)
     expect(out.upgrades).toHaveLength(0)
     expect(mockRank).not.toHaveBeenCalled()
+  })
+
+  it('uses the allocated damage skill as the exact scoring target', async () => {
+    mockRank.mockResolvedValue({ base_a: 100, base_b: 120 })
+    await scanForUpgrades(makeDeps({ activeSkillIds: [] }))
+
+    expect(mockRank).toHaveBeenCalled()
+    for (const [scoringDeps] of mockRank.mock.calls) {
+      expect(scoringDeps.activeSkillIds).toEqual(['skill-1'])
+    }
   })
 
   it('skips charm slots entirely', async () => {

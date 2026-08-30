@@ -6,15 +6,20 @@ import {
   subskillPointsFor,
   subskillSpentFor,
 } from './helpers'
+import {
+  skillPrerequisiteIds,
+  unmetSkillPrerequisiteIds,
+} from '../../utils/skills/prerequisites'
 import type { BuildStore } from './types'
 
 const SKILL_BY_ID = new Map(ALL_SKILLS.map((s) => [s.id, s]))
 const DEPENDENT_SKILL_IDS = new Map<string, string[]>()
 for (const s of ALL_SKILLS) {
-  if (!s.requiresSkill) continue
-  const list = DEPENDENT_SKILL_IDS.get(s.requiresSkill) ?? []
-  list.push(s.id)
-  DEPENDENT_SKILL_IDS.set(s.requiresSkill, list)
+  for (const prerequisiteId of skillPrerequisiteIds(s)) {
+    const list = DEPENDENT_SKILL_IDS.get(prerequisiteId) ?? []
+    list.push(s.id)
+    DEPENDENT_SKILL_IDS.set(prerequisiteId, list)
+  }
 }
 
 type SkillsSlice = Pick<
@@ -68,9 +73,12 @@ export const createSkillsSlice: StateCreator<
     if (clamped === currentSkillRank) return
 
     const skillDef = SKILL_BY_ID.get(skillId)
-    if (clamped > 0 && skillDef?.requiresSkill) {
-      const reqRank = skillRanks[skillDef.requiresSkill] ?? 0
-      if (reqRank === 0) return
+    if (
+      clamped > 0 &&
+      skillDef &&
+      unmetSkillPrerequisiteIds(skillDef, skillRanks).length > 0
+    ) {
+      return
     }
 
     const next = { ...skillRanks }

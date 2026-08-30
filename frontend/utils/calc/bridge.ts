@@ -1,6 +1,15 @@
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
-import type { CustomStat, Inventory, RangedValue, Skill, TreeSocketContent } from '../../types'
+import type {
+  CustomStat,
+  GearOptimizerConstraints,
+  GearOptimizerResult,
+  Inventory,
+  RangedValue,
+  Skill,
+  TreeSocketContent,
+} from '../../types'
 import type { AttackSkillDamageBreakdown, SkillDamageBreakdown } from '../../utils/item/stats'
 import type {
   BuildPerformance,
@@ -275,6 +284,58 @@ export async function rankSlotItemsNative(
     })
   } catch (err) {
     throw notifyBridgeError(err)
+  }
+}
+
+export type { GearOptimizerResult } from '../../types'
+
+export interface GearOptimizerRunOptions extends GearOptimizerConstraints {
+  onProgress?: (current: number, total: number) => void
+}
+
+interface GearOptimizerProgress {
+  current: number
+  total: number
+}
+
+let gearOptimizerRunActive = false
+
+export async function optimizeGearNative(
+  deps: BuildPerformanceDeps,
+  selectedSkillId: string,
+  options: GearOptimizerRunOptions = {
+    thresholds: {},
+    rarityFilter: null,
+  },
+): Promise<GearOptimizerResult> {
+  if (gearOptimizerRunActive) {
+    throw notifyBridgeError(
+      new Error('A gear optimization is already running. Wait for it to finish.'),
+    )
+  }
+  gearOptimizerRunActive = true
+  const { thresholds, rarityFilter, onProgress } = options
+  let unlisten: UnlistenFn | null = null
+  try {
+    if (onProgress) {
+      unlisten = await listen<GearOptimizerProgress>(
+        'gear-optimizer-progress',
+        (event) => onProgress(event.payload.current, event.payload.total),
+      )
+    }
+    return await invoke<GearOptimizerResult>('optimize_gear', {
+      input: {
+        perf: depsToInput({ ...deps, activeSkillIds: [selectedSkillId] }),
+        selectedSkillId,
+        thresholds,
+        rarityFilter,
+      },
+    })
+  } catch (err) {
+    throw notifyBridgeError(err)
+  } finally {
+    if (unlisten) unlisten()
+    gearOptimizerRunActive = false
   }
 }
 

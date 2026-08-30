@@ -18,6 +18,26 @@ export function makeEquippedItem(baseId: string): EquippedItem | null {
   }
 }
 
+/** Whether an equipped item is the clean base representation used by V1 optimization. */
+export function isCleanEquippedItem(item: EquippedItem): boolean {
+  const clean = makeEquippedItem(item.baseId)
+  if (!clean) return false
+  return (
+    item.affixes.length === 0 &&
+    item.socketCount === clean.socketCount &&
+    item.socketed.length === clean.socketed.length &&
+    item.socketed.every((socket) => socket === null) &&
+    item.socketTypes.length === clean.socketTypes.length &&
+    item.socketTypes.every((type, index) => type === clean.socketTypes[index]) &&
+    !item.runewordId &&
+    (item.stars ?? 0) === 0 &&
+    (item.forgedMods?.length ?? 0) === 0 &&
+    item.augment === undefined &&
+    Object.keys(item.implicitOverrides ?? {}).length === 0 &&
+    item.randomSkillId === undefined
+  )
+}
+
 export function withSocketCount(item: EquippedItem, count: number): EquippedItem {
   const max = maxSocketsFor(item.baseId, item.forgedMods)
   const clamped = Math.max(0, Math.min(max, count))

@@ -9,6 +9,8 @@ import {
 import { mercGrantedSkillRanks } from '../../utils/build/mercStats'
 import { getActiveProfile, type SavedBuild } from '../../utils/build/savedBuilds'
 import { type BuildSnapshot, decodeShareToBuild } from '../../utils/build/shareBuild'
+import { pruneUnknownAllocationIds } from '../../utils/build/seasonMigration'
+import { activeSeasonId } from '@data'
 
 const CALC_DEBOUNCE_MS = 130
 
@@ -71,7 +73,10 @@ export function usePreviewStats(build: SavedBuild | null): PreviewStats {
       setState({ ...EMPTY })
       return
     }
-    const snapshot = decoded.snapshot
+    const snapshot =
+      build.season === activeSeasonId
+        ? pruneUnknownAllocationIds(decoded.snapshot)
+        : decoded.snapshot
     setState({ performance: null, snapshot, loading: true, available: true })
     /* eslint-enable react-hooks/set-state-in-effect */
 

@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "import-build": "node scripts/import-build.mjs",
+    "patch-build": "node scripts/patch-build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "parity": "cd engine && cargo test --test parity",

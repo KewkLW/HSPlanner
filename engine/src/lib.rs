@@ -6,6 +6,27 @@ use tauri::Manager;
 #[cfg(any(windows, target_os = "linux"))]
 use tauri_plugin_deep_link::DeepLinkExt;
 
+#[tauri::command]
+fn dev_import_token() -> Result<String, String> {
+  if !cfg!(debug_assertions) {
+    return Err("build import is available only in debug builds".to_string());
+  }
+
+  let home_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+  let home = std::env::var_os(home_var)
+    .ok_or_else(|| format!("{home_var} is not set"))?;
+  let path = std::path::PathBuf::from(home)
+    .join(".hsplanner")
+    .join("dev-import-5173.token");
+  let token = std::fs::read_to_string(path)
+    .map_err(|err| format!("could not read the dev import token: {err}"))?;
+  let token = token.trim();
+  if token.is_empty() {
+    return Err("dev import token is empty".to_string());
+  }
+  Ok(token.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let builder = tauri::Builder::default();
@@ -38,11 +59,13 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      dev_import_token,
       calc::commands::compute_skill_damage,
       calc::commands::compute_attack_skill_damage,
       calc::commands::compute_weapon_damage,
       calc::commands::calc_build_performance,
       calc::commands::rank_slot_items,
+      calc::commands::optimize_gear,
       calc::commands::calc_build_stats,
       calc::commands::calc_stat_breakdown,
       calc::commands::calc_warmup,

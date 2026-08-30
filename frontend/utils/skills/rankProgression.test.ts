@@ -29,6 +29,24 @@ describe('rankPointOrder', () => {
     expect(rankPointOrder(ranks, requires)).toEqual(['a', 'b', 'c'])
   })
 
+  it('places every allocated prerequisite before a multi-parent child', () => {
+    const ranks = { child: 1, left: 1, right: 1 }
+    const requiresAllOf = (id: string): readonly string[] =>
+      id === 'child' ? ['left', 'right'] : []
+    expect(rankPointOrder(ranks, requiresAllOf)).toEqual([
+      'left',
+      'right',
+      'child',
+    ])
+  })
+
+  it('waits for every allocated parent but ignores an absent one', () => {
+    const ranks = { child: 1, left: 1 }
+    const requiresAllOf = (id: string): readonly string[] =>
+      id === 'child' ? ['left', 'unallocated-right'] : []
+    expect(rankPointOrder(ranks, requiresAllOf)).toEqual(['left', 'child'])
+  })
+
   it('treats a prerequisite absent from ranks as satisfied (points not lost)', () => {
     const ranks = { x: 2 }
     const requires = (id: string): string | undefined =>

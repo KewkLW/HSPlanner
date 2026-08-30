@@ -1,0 +1,296 @@
+{
+  "v": 2,
+  "c": "jotunn",
+  "l": 100,
+  "a": {},
+  "i": {
+    "weapon": {
+      "baseId": "claw_heroic_glacier_talons",
+      "affixes": [],
+      "socketCount": 4,
+      "socketed": ["gem_pristine_sapphire", "gem_pristine_sapphire", "gem_pristine_sapphire", "gem_pristine_sapphire"],
+      "socketTypes": ["normal", "normal", "normal", "normal"],
+      "stars": 0,
+      "implicitOverrides": {
+        "enhanced_damage": 380,
+        "all_skills": 2,
+        "cold_skills": 6,
+        "flat_cold_skill_damage": 20,
+        "cold_skill_damage": 49,
+        "extra_dmg_to_deep_frozen": 30
+      }
+    },
+    "offhand": {
+      "baseId": "shield_heroic_tombstone",
+      "affixes": [],
+      "socketCount": 6,
+      "socketed": ["rune_um", "rune_um", "rune_um", "rune_um", "rune_um", "rune_um"],
+      "socketTypes": ["normal", "normal", "normal", "normal", "normal", "normal"],
+      "stars": 0,
+      "implicitOverrides": {
+        "enhanced_defense": 356,
+        "to_vitality": 30,
+        "to_armor": 42,
+        "life": 666,
+        "faster_hit_recovery": 142,
+        "increased_life": 8,
+        "damage_return": 62,
+        "damage_recouped_as_mana": 15,
+        "physical_damage_reduction": 8,
+        "all_resistances": 28
+      }
+    },
+    "helmet": {
+      "baseId": "helmet_satanic_lunar_prophet_s_tiara",
+      "affixes": [],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0,
+      "implicitOverrides": {
+        "enhanced_defense": 110,
+        "cold_skills": 1,
+        "to_intelligence": 12,
+        "mana_per_kill": 9,
+        "cold_absorption": 3
+      }
+    },
+    "armor": {
+      "baseId": "body_armor_heroic_stoneplate_of_corruption",
+      "affixes": [
+        { "affixId": "random_unholy_all_attributes", "tier": 1, "roll": 0, "customValue": 45 },
+        { "affixId": "random_unholy_experience_gain", "tier": 1, "roll": 0, "customValue": 5 }
+      ],
+      "socketCount": 5,
+      "socketed": ["gem_pristine_sapphire", "gem_pristine_sapphire", "gem_pristine_sapphire", "gem_pristine_sapphire", "gem_pristine_sapphire"],
+      "socketTypes": ["normal", "normal", "normal", "normal", "normal"],
+      "stars": 0,
+      "implicitOverrides": {
+        "enhanced_defense": 445,
+        "all_skills": 3,
+        "all_damage_taken_reduced_pct": 8,
+        "all_resistances": 36
+      }
+    },
+    "gloves": {
+      "baseId": "gloves_heroic_fighter_magi_s_grips",
+      "affixes": [],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0,
+      "implicitOverrides": {
+        "enhanced_defense": 149,
+        "all_skills": 3,
+        "skill_haste": 28,
+        "all_attributes": 28,
+        "magic_skill_damage": 38
+      }
+    },
+    "boots": {
+      "baseId": "boots_satanic_metal_vocalist_s_war_boots",
+      "affixes": [],
+      "socketCount": 4,
+      "socketed": ["gem_pristine_sapphire", "gem_pristine_sapphire", "gem_pristine_sapphire", "gem_pristine_sapphire"],
+      "socketTypes": ["normal", "normal", "normal", "normal"],
+      "stars": 0,
+      "implicitOverrides": {
+        "enhanced_defense": 200,
+        "movement_speed": 60,
+        "lightning_skill_damage": 25
+      }
+    },
+    "belt": {
+      "baseId": "belt_heroic_freya_s_frozen_buckle",
+      "affixes": [],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0,
+      "implicitOverrides": {
+        "enhanced_defense": 129,
+        "cold_skills": 5,
+        "increased_frost_bite_damage": 31,
+        "extra_dmg_to_deep_frozen": 23,
+        "cold_skill_damage": 35,
+        "cold_absorption": 12
+      }
+    },
+    "amulet": {
+      "baseId": "amulet_satanic_elder_s_heart",
+      "affixes": [],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0,
+      "implicitOverrides": {
+        "enhanced_defense": 0,
+        "attack_rating_pct": 0,
+        "all_attributes": 0,
+        "all_resistances": 0,
+        "vitality_converted_to_magic_skill_dmg": 5,
+        "to_vitality": 10,
+        "increased_vitality": 5,
+        "life": 653
+      }
+    },
+    "ring_1": {
+      "baseId": "ring_satanic_lunar_prophet_s_band",
+      "affixes": [],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 5,
+      "implicitOverrides": {
+        "cold_skills": 3,
+        "increased_frost_bite_damage": 25,
+        "cold_skill_damage": 9,
+        "increased_mana": 4
+      }
+    },
+    "ring_2": {
+      "baseId": "ring_heroic_signet_of_harbringer",
+      "affixes": [],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0,
+      "implicitOverrides": {
+        "cold_skills": 4,
+        "increased_frost_bite_damage": 12,
+        "cold_skill_damage": 31,
+        "ignore_cold_res": 15
+      }
+    },
+    "charm_1": {
+      "baseId": "charm_satanic_cold_giant_s_charm",
+      "affixes": [],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0,
+      "implicitOverrides": {
+        "flat_cold_skill_damage": 40,
+        "cold_skill_damage": 25,
+        "ignore_cold_res": 8
+      }
+    },
+    "charm_2": {
+      "baseId": "charms_normal_small_charm",
+      "affixes": [
+        { "affixId": "3_10_increased_magic_find_t4_tombraider", "tier": 4, "roll": 0, "customValue": 2 }
+      ],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0
+    },
+    "charm_3": {
+      "baseId": "charm_satanic_crow_s_feather",
+      "affixes": [],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0
+    },
+    "charm_4": {
+      "baseId": "charms_normal_grand_charm",
+      "affixes": [
+        { "affixId": "1_5_to_intelligence_t5_witch", "tier": 5, "roll": 0, "customValue": 24 },
+        { "affixId": "10_25_faster_hit_recovery_t4_recovery", "tier": 4, "roll": 0, "customValue": 61 },
+        { "affixId": "1_5_life_after_each_kill_t4_corpsemuncher", "tier": 4, "roll": 0, "customValue": 5 }
+      ],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0
+    },
+    "charm_5": {
+      "baseId": "charm_heroic_dragon_s_heart",
+      "affixes": [],
+      "socketCount": 1,
+      "socketed": ["gem_pristine_sapphire"],
+      "socketTypes": ["rainbow"],
+      "stars": 0
+    },
+    "charm_6": {
+      "baseId": "charms_normal_large_charm",
+      "affixes": [
+        { "affixId": "1_5_to_intelligence_t3_warlock", "tier": 3, "roll": 0, "customValue": 9 }
+      ],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0
+    },
+    "charm_7": {
+      "baseId": "charms_normal_grand_charm",
+      "affixes": [
+        { "affixId": "3_8_to_cold_skill_damage_t5_glacial", "tier": 5, "roll": 0, "customValue": 20 },
+        { "affixId": "replenish_mana_5_10_t5_manabloom", "tier": 5, "roll": 0, "customValue": 39 },
+        { "affixId": "10_25_defense_vs_missiles_t4_projectileguard", "tier": 4, "roll": 0, "customValue": 56 }
+      ],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0
+    },
+    "charm_8": {
+      "baseId": "charms_normal_grand_charm",
+      "affixes": [
+        { "affixId": "3_10_increased_critical_strike_damage_t3_assassin", "tier": 3, "roll": 0, "customValue": 8 },
+        { "affixId": "1_5_to_energy_t5_resonance", "tier": 5, "roll": 0, "customValue": 16 },
+        { "affixId": "life_increased_by_1_4_t5_lionheart_s", "tier": 5, "roll": 0, "customValue": 17 }
+      ],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0
+    },
+    "charm_9": {
+      "baseId": "charms_normal_grand_charm",
+      "affixes": [
+        { "affixId": "1_4_increased_attack_rating_t4_bullseye", "tier": 4, "roll": 0, "customValue": 17 },
+        { "affixId": "15_30_to_life_t4_mammoth", "tier": 4, "roll": 0, "customValue": 200 },
+        { "affixId": "life_increased_by_1_4_t3_jaguarheart_s", "tier": 3, "roll": 0, "customValue": 10 }
+      ],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0
+    },
+    "charm_10": {
+      "baseId": "charms_normal_grand_charm",
+      "affixes": [
+        { "affixId": "25_50_enhanced_defense_t5_guardian_s", "tier": 5, "roll": 0, "customValue": 82 },
+        { "affixId": "1_2_mana_stolen_per_hit_t5_manawraith", "tier": 5, "roll": 0, "customValue": 7 },
+        { "affixId": "life_increased_by_1_4_t5_lionheart_s", "tier": 5, "roll": 0, "customValue": 6 }
+      ],
+      "socketCount": 0,
+      "socketed": [],
+      "socketTypes": [],
+      "stars": 0
+    }
+  },
+  "s": {},
+  "ss": {},
+  "t": [],
+  "m": [],
+  "u": null,
+  "buf": {},
+  "ec": {},
+  "pc": {},
+  "sp": {},
+  "er": {
+    "fire": 85,
+    "cold": 85,
+    "lightning": 85,
+    "poison": 85,
+    "arcane": 85
+  },
+  "pt": {},
+  "dp": {},
+  "kps": 1,
+  "n": "Gear-only import transcribed from 22 supplied screenshots on 2026-08-29. Includes 10 equipment slots and 10 charms with visible rolls, stars, gems, runes, and Dragon's Heart rainbow socket.",
+  "se": "s10"
+}

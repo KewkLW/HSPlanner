@@ -7,6 +7,10 @@ import { DAMAGE_COLORS } from '../../utils/damageColors'
 import type { Skill } from '../../types'
 import { formatPair } from './skillFormat'
 import {
+  skillPrerequisiteIds,
+  unmetSkillPrerequisiteIds,
+} from '../../utils/skills/prerequisites'
+import {
   ACCENT_HOT_RGB,
   CELL,
   GAP,
@@ -119,38 +123,40 @@ export function SkillTree({
           width={width}
           height={height}
         >
-          {list.map((skill) => {
-            if (!skill.requiresSkill || !skill.position) return null
-            const parent = byId.get(skill.requiresSkill)
-            if (!parent?.position) return null
-            const a = cellCenter(parent.position)
-            const b = cellCenter(skill.position)
-            const parentRank = skillRanks[parent.id] ?? 0
-            const satisfied = parentRank > 0
-            return (
-              <line
-                key={`${parent.id}-${skill.id}`}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                style={{
-                  stroke: satisfied
-                    ? `rgba(${rgb},0.55)`
-                    : 'rgba(120,110,95,0.35)',
-                }}
-                strokeWidth={2}
-                strokeDasharray="4 5"
-                strokeLinecap="round"
-              />
-            )
+          {list.flatMap((skill) => {
+            if (!skill.position) return []
+            return skillPrerequisiteIds(skill).flatMap((parentId) => {
+              const parent = byId.get(parentId)
+              if (!parent?.position) return []
+              const a = cellCenter(parent.position)
+              const b = cellCenter(skill.position!)
+              const satisfied = (skillRanks[parent.id] ?? 0) > 0
+              return [
+                <line
+                  key={`${parent.id}-${skill.id}`}
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  style={{
+                    stroke: satisfied
+                      ? `rgba(${rgb},0.55)`
+                      : 'rgba(120,110,95,0.35)',
+                  }}
+                  strokeWidth={2}
+                  strokeDasharray="4 5"
+                  strokeLinecap="round"
+                />,
+              ]
+            })
           })}
         </svg>
         {list.map((skill) => {
           if (!skill.position) return null
-          const locked =
-            !!skill.requiresSkill &&
-            (skillRanks[skill.requiresSkill] ?? 0) === 0
+          const locked = unmetSkillPrerequisiteIds(skill, skillRanks).length > 0
+          const prerequisiteLabel = skillPrerequisiteIds(skill)
+            .map((id) => byId.get(id)?.name ?? id)
+            .join(' and ')
           const hasSubtree = (skill.subskills?.length ?? 0) > 0
           return (
             <SkillIcon
@@ -159,6 +165,7 @@ export function SkillTree({
               rank={skillRanks[skill.id] ?? 0}
               bonus={skillBonuses[skill.id]}
               locked={locked}
+              prerequisiteLabel={prerequisiteLabel}
               canIncrement={canIncrement}
               hovered={hoveredId === skill.id}
               isSelected={selectedId === skill.id}
@@ -189,6 +196,7 @@ function SkillIcon({
   rank,
   bonus,
   locked,
+  prerequisiteLabel,
   canIncrement,
   hovered,
   isSelected,
@@ -207,6 +215,7 @@ function SkillIcon({
   rank: number
   bonus?: [number, number]
   locked: boolean
+  prerequisiteLabel: string
   canIncrement: boolean
   hovered: boolean
   isSelected: boolean
@@ -254,6 +263,13 @@ function SkillIcon({
         bonus[0] === bonus[1] ? formatPair(bonus) : `(${formatPair(bonus)})`
       }`
     : ''
+  const iconButtonLabel = locked
+    ? `${skill.name}, rank ${rank} of ${skill.maxRank}, locked, requires ${prerequisiteLabel}`
+    : canInc
+      ? `${skill.name}, rank ${rank} of ${skill.maxRank}, add point`
+      : rank >= skill.maxRank
+        ? `${skill.name}, rank ${rank} of ${skill.maxRank}, maximum rank`
+        : `${skill.name}, rank ${rank} of ${skill.maxRank}, no skill points available`
 
   return (
     <motion.div
@@ -266,10 +282,19 @@ function SkillIcon({
       }}
       className="group relative flex items-center justify-center rounded-[3px] transition-all"
       style={{ ...style, boxShadow: ringShadow }}
-      title={locked ? `Requires ${skill.requiresSkill}` : undefined}
     >
       <button
-        onClick={onSelect}
+        type="button"
+        onClick={(e) => {
+          onSelect()
+          if (canInc) onInc(e)
+        }}
+        aria-label={iconButtonLabel}
+        title={
+          locked
+            ? `${skill.name} — Requires ${prerequisiteLabel}`
+            : skill.name
+        }
         className={`flex cursor-pointer items-center justify-center transition-transform hover:scale-105 ${
           locked ? 'opacity-30 grayscale' : allocated ? '' : 'opacity-60'
         }`}
@@ -279,7 +304,7 @@ function SkillIcon({
       </button>
 
       <div
-        className={`absolute bottom-0.5 left-0.5 flex h-5 min-w-5 items-center justify-center rounded-xs border px-1 font-mono text-[11px] font-semibold tabular-nums ${
+        className={`pointer-events-none absolute bottom-0.5 left-0.5 flex h-5 min-w-5 items-center justify-center rounded-xs border px-1 font-mono text-[11px] font-semibold tabular-nums ${
           allocated
             ? 'border-accent-deep text-accent-hot'
             : 'border-border text-faint'
@@ -298,6 +323,7 @@ function SkillIcon({
 
       {canInc && (
         <button
+          type="button"
           onClick={onInc}
           onContextMenu={(e) => {
             e.preventDefault()
@@ -315,6 +341,7 @@ function SkillIcon({
       )}
       {hasSubtree && (
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation()
             onOpenSubtree()

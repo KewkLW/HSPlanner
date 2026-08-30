@@ -4,6 +4,10 @@ import { pickerItemsForSlot } from '../pickerItems'
 import type { BuildPerformanceDeps } from '../../../utils/build/buildPerformance'
 import type { PickerRow } from '../PickerModal'
 import type { SlotDef, SlotKey } from '../../../types'
+import {
+  resolveAllocatedDamageSkillId,
+  withExactDamageSkillTarget,
+} from '../../../utils/build/damageSkillTarget'
 
 export interface UpgradeSuggestion {
   slot: SlotKey
@@ -62,7 +66,9 @@ export async function scanForUpgrades(
   deps: BuildPerformanceDeps,
   onProgress?: (done: number, total: number) => void,
 ): Promise<UpgradeScanResult> {
-  if (deps.activeSkillIds.length === 0) return { emptySlots: [], upgrades: [] }
+  const targetSkillId = resolveAllocatedDamageSkillId(deps)
+  if (!targetSkillId) return { emptySlots: [], upgrades: [] }
+  const scoringDeps = withExactDamageSkillTarget(deps, targetSkillId)
 
   const isTwoHanded = !!getItem(deps.inventory.weapon?.baseId ?? '')?.twoHanded
   const slots = gameConfig.slots.filter(
@@ -85,7 +91,7 @@ export async function scanForUpgrades(
       continue
     }
 
-    const scores = await rankSlotItemsNative(deps, slot.key, ids)
+    const scores = await rankSlotItemsNative(scoringDeps, slot.key, ids)
     onProgress?.(index + 1, slots.length)
 
     if (currentBaseId === undefined) {

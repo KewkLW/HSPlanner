@@ -70,7 +70,7 @@ export default function TreeNodeMiniMap({ node, width = 340 }: Props) {
         }}
       >
         <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-faint">
-          Tree node
+          Incarnation node
         </div>
         <div className="mt-0.5 text-[12px] font-semibold text-accent-hot leading-tight">
           {node.name}

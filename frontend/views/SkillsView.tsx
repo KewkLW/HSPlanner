@@ -17,6 +17,7 @@ import {
   effectiveSkillTags,
   tagSkillBonuses,
 } from '../utils/skills/skillTags'
+import { skillPrerequisiteIds } from '../utils/skills/prerequisites'
 import { SkillDetailsPanel, EmptyState } from './skills/SkillDetailsPanel'
 
 export default function SkillsView() {
@@ -52,17 +53,18 @@ export default function SkillsView() {
     [classId],
   )
 
-  const skillRequiresById = useMemo(() => {
-    const map = new Map<string, string | undefined>()
-    for (const s of skills) map.set(s.id, s.requiresSkill)
+  const skillRequiresAllOfById = useMemo(() => {
+    const map = new Map<string, readonly string[]>()
+    for (const s of skills) map.set(s.id, skillPrerequisiteIds(s))
     return map
   }, [])
-  const requiresLookup = useCallback(
-    (skillId: string): string | undefined => skillRequiresById.get(skillId),
-    [skillRequiresById],
+  const requiresAllOfLookup = useCallback(
+    (skillId: string): readonly string[] =>
+      skillRequiresAllOfById.get(skillId) ?? [],
+    [skillRequiresAllOfById],
   )
   const { progressStep, setProgressStep, visibleRanks, markerId, isPreview } =
-    useRankProgressionPreview(skillRanks, requiresLookup)
+    useRankProgressionPreview(skillRanks, requiresAllOfLookup)
 
   const totalPoints = skillPointsFor(level)
   const spent = Object.values(skillRanks).reduce((s, v) => s + v, 0)
@@ -162,7 +164,7 @@ export default function SkillsView() {
             style={{ boxShadow: '0 0 8px rgba(224,184,100,0.6)' }}
           />
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
-            Skills
+            Spec
           </span>
           <span
             className="text-[15px] font-semibold tracking-[0.02em] text-accent-hot"

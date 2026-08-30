@@ -23,11 +23,11 @@ const mockUseDeps = vi.mocked(useBuildPerformanceDeps)
 
 function makeDeps(overrides: Partial<BuildPerformanceDeps> = {}): BuildPerformanceDeps {
   return {
-    classId: 'amazon',
-    level: 50,
+    classId: 'jotunn',
+    level: 100,
     allocatedAttrs: {},
     inventory: {},
-    skillRanks: {},
+    skillRanks: { orb_of_frost: 20 },
     subskillRanks: {},
     activeAuraId: null,
     activeBuffs: {},
@@ -35,7 +35,7 @@ function makeDeps(overrides: Partial<BuildPerformanceDeps> = {}): BuildPerforman
     allocatedTreeNodes: new Set(),
     allocatedIncarnationNodes: new Set(),
     treeSocketed: {},
-    activeSkillIds: ['skill-1'],
+    activeSkillIds: ['orb_of_frost'],
     enemyConditions: {},
     playerConditions: {},
     skillProjectiles: {},
@@ -85,13 +85,29 @@ describe('<UpgradeAdvisor>', () => {
     expect(mockScan).not.toHaveBeenCalled()
   })
 
-  it('disables scanning without a main skill', () => {
+  it('uses an allocated damage spell without a separately configured main skill', async () => {
     mockUseDeps.mockReturnValue(makeDeps({ activeSkillIds: [] }))
+    mockScan.mockResolvedValue(EMPTY_RESULT)
+    render(<UpgradeAdvisor onPickSlot={() => {}} />)
+    const button = screen.getByRole('button', { name: /scan for upgrades/i })
+    expect(button).toBeEnabled()
+
+    await userEvent.click(button)
+    await waitFor(() => expect(mockScan).toHaveBeenCalledTimes(1))
+    expect(mockScan.mock.calls[0]![0].activeSkillIds).toEqual(['orb_of_frost'])
+  })
+
+  it('disables scanning when no damaging skill is allocated', () => {
+    mockUseDeps.mockReturnValue(
+      makeDeps({ activeSkillIds: [], skillRanks: {} }),
+    )
     render(<UpgradeAdvisor onPickSlot={() => {}} />)
     expect(
       screen.getByRole('button', { name: /scan for upgrades/i }),
     ).toBeDisabled()
-    expect(screen.getByText(/select a main skill first/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/allocate a damaging active skill first/i),
+    ).toBeInTheDocument()
   })
 
   it('shows progress while scanning', async () => {

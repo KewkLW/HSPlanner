@@ -55,7 +55,7 @@ export default function SeasonSwitcher() {
               and the app will reload.
             </p>
             <p className="m-0 mt-2 font-mono text-[12px] leading-relaxed tracking-[0.04em] text-muted">
-              Tree and Ether allocations are{" "}
+              Incarnation and Ether allocations are{" "}
               <span className="text-accent-hot">reset</span> — gear and skills
               carry over where they still exist in the target season.
             </p>

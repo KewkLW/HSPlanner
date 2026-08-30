@@ -22,6 +22,16 @@ export function initUndoHistory(): () => void {
   const unsubscribe = useBuild.subscribe((state, prev) => {
     if (isRestoring) return
     if (
+      state.allocationLoadoutNavigationVersion !==
+      prev.allocationLoadoutNavigationVersion
+    ) {
+      // A loadout selector is navigation, not an edit. Never let Ctrl+Z carry
+      // allocation state across two independently editable loadouts.
+      undoStack = []
+      redoStack = []
+      return
+    }
+    if (
       state.activeBuildId !== prev.activeBuildId ||
       state.activeProfileId !== prev.activeProfileId
     ) {

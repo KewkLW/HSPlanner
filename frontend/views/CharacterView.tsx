@@ -17,7 +17,7 @@ import {
   useBuild,
 } from '../store/build'
 import { getSavedBuild } from '../utils/build/savedBuilds'
-import { heroLevelFor } from '../utils/build/heroLevel'
+import { incarnationPointsSpent } from '../utils/build/heroLevel'
 import { computeBuildPerformanceAsync } from '../utils/calc/bridge'
 import { useBuildPerformanceDeps } from '../hooks/useBuildPerformanceDeps'
 import { useCalcResult } from '../hooks/useCalcResult'
@@ -103,6 +103,7 @@ export default function CharacterView() {
   const playerConditions = useBuild((s) => s.playerConditions)
 
   const buildDeps = useBuildPerformanceDeps()
+  const heroLevel = useBuild((s) => s.heroLevel)
   const performance = useCalcResult<BuildPerformance | null>(
     () => computeBuildPerformanceAsync(buildDeps),
     [buildDeps],
@@ -125,7 +126,7 @@ export default function CharacterView() {
   const skillSpent = Object.values(skillRanks).reduce((s, v) => s + v, 0)
   const skillTotal = skillPointsFor(level)
   const treeNodes = buildDeps.allocatedTreeNodes.size
-  const heroLevel = heroLevelFor(buildDeps)
+  const incarnationSpent = incarnationPointsSpent(treeNodes)
 
   const allClassSkills = useMemo(() => getSkillsByClass(classId), [classId])
   const mainSkills = activeSkillIds
@@ -334,7 +335,11 @@ export default function CharacterView() {
         <div className="flex items-stretch gap-2">
           <PointStat label="Attr used" value={attrSpent} total={attrTotal} />
           <PointStat label="Skill used" value={skillSpent} total={skillTotal} />
-          <PointStat label="Tree nodes" value={treeNodes} />
+          <PointStat
+            label="Incarnation pts"
+            value={incarnationSpent}
+            total={heroLevel}
+          />
         </div>
       </Card>
 

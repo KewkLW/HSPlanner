@@ -25,6 +25,7 @@ interface SuggestResult {
 
 interface Props {
   currentAllocation: Set<number>
+  maxBudget: number
   deps: BuildPerformanceDeps
   onPreviewChange: (nodes: Set<number> | null) => void
   onApply: (suggestedNodes: Set<number>) => void
@@ -36,6 +37,11 @@ type Phase = 'idle' | 'computing' | 'done' | 'error'
 const MIN_BUDGET = 1
 const MAX_BUDGET = 200
 const DEFAULT_BUDGET = 10
+
+function clampBudgetCap(maxBudget: number): number {
+  if (!Number.isFinite(maxBudget)) return 0
+  return Math.max(0, Math.min(MAX_BUDGET, Math.floor(maxBudget)))
+}
 
 function formatDps(value: number): string {
   if (!Number.isFinite(value)) return '—'
@@ -74,14 +80,41 @@ function nodeKind(
 }
 
 export default function SuggestNodesModal({
+  maxBudget,
+  ...sessionProps
+}: Props) {
+  const budgetCap = clampBudgetCap(maxBudget)
+  const allocationKey = [...sessionProps.currentAllocation]
+    .sort((a, b) => a - b)
+    .join(',')
+
+  // A changed point pool or allocation invalidates both an in-flight run and
+  // a completed result. Remounting the session resets them atomically and the
+  // cleanup below aborts the old native request before it can preview/apply.
+  return (
+    <SuggestNodesModalSession
+      key={`${budgetCap}:${allocationKey}`}
+      {...sessionProps}
+      budgetCap={budgetCap}
+    />
+  )
+}
+
+type SessionProps = Omit<Props, 'maxBudget'> & { budgetCap: number }
+
+function SuggestNodesModalSession({
   currentAllocation,
+  budgetCap,
   deps,
   onPreviewChange,
   onApply,
   onClose,
-}: Props) {
+}: SessionProps) {
   const nodeInfo = TREE_NODE_INFO as Record<string, TreeNodeInfo>
-  const [budget, setBudget] = useState<number>(DEFAULT_BUDGET)
+  const hasBudget = budgetCap >= MIN_BUDGET
+  const [budget, setBudget] = useState<number>(() =>
+    hasBudget ? Math.min(DEFAULT_BUDGET, budgetCap) : 0,
+  )
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState<{ current: number; total: number }>({
     current: 0,
@@ -90,6 +123,10 @@ export default function SuggestNodesModal({
   const [result, setResult] = useState<SuggestResult | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const resultFitsBudget =
+    result != null &&
+    result.addedNodes.size <= budgetCap &&
+    result.budgetUsed <= budgetCap
 
   const handleClose = useCallback(() => {
     abortRef.current?.abort()
@@ -106,14 +143,15 @@ export default function SuggestNodesModal({
   }, [])
 
   useEffect(() => {
-    if (result?.addedNodes && result.addedNodes.size > 0) {
+    if (resultFitsBudget && result.addedNodes.size > 0) {
       onPreviewChange(result.addedNodes)
     } else {
       onPreviewChange(null)
     }
-  }, [result, onPreviewChange])
+  }, [result, resultFitsBudget, onPreviewChange])
 
   const handleCalculate = useCallback(async () => {
+    if (!hasBudget) return
     abortRef.current?.abort()
     const ac = new AbortController()
     abortRef.current = ac
@@ -140,6 +178,16 @@ export default function SuggestNodesModal({
         budgetRequested: native.budgetRequested,
         unsupportedLines: native.unsupportedLines,
       }
+      if (
+        res.addedNodes.size > budgetCap ||
+        res.budgetUsed > budgetCap
+      ) {
+        setErrorMsg('Suggestion exceeded the available Incarnation points.')
+        setResult(null)
+        setPhase('error')
+        onPreviewChange(null)
+        return
+      }
       setResult(res)
       setPhase('done')
     } catch (err: unknown) {
@@ -152,14 +200,14 @@ export default function SuggestNodesModal({
       setErrorMsg(err instanceof Error ? err.message : String(err))
       setPhase('error')
     }
-  }, [budget, currentAllocation, onPreviewChange, deps])
+  }, [budget, budgetCap, currentAllocation, hasBudget, onPreviewChange, deps])
 
   const handleApply = useCallback(() => {
-    if (!result || result.addedNodes.size === 0) return
+    if (!resultFitsBudget || result.addedNodes.size === 0) return
     onPreviewChange(null)
     onApply(result.addedNodes)
     onClose()
-  }, [onApply, onClose, onPreviewChange, result])
+  }, [onApply, onClose, onPreviewChange, result, resultFitsBudget])
 
   const handleReset = useCallback(() => {
     abortRef.current?.abort()
@@ -171,7 +219,9 @@ export default function SuggestNodesModal({
   }, [onPreviewChange])
 
   const isComputing = phase === 'computing'
-  const canApply = phase === 'done' && (result?.addedNodes.size ?? 0) > 0
+  const controlMin = hasBudget ? MIN_BUDGET : 0
+  const canApply =
+    phase === 'done' && resultFitsBudget && result.addedNodes.size > 0
   const progressPct =
     progress.total > 0
       ? Math.min(100, Math.round((progress.current / progress.total) * 100))
@@ -182,7 +232,7 @@ export default function SuggestNodesModal({
       onClose={handleClose}
       dataTour="suggest-modal"
       panelClassName="max-h-[88vh] w-[540px] max-w-[94vw]"
-      eyebrow="Talent Tree Optimizer"
+      eyebrow="Incarnation Optimizer"
       title="Suggest Nodes"
     >
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -200,7 +250,9 @@ export default function SuggestNodesModal({
                   onClick={() =>
                     setBudget((b) => Math.max(MIN_BUDGET, b - 1))
                   }
-                  disabled={isComputing || budget <= MIN_BUDGET}
+                  disabled={
+                    isComputing || !hasBudget || budget <= MIN_BUDGET
+                  }
                   className="h-7 w-7 rounded-[3px] border border-border-2 bg-panel-2 font-mono text-[14px] text-muted transition-colors enabled:hover:border-accent-deep enabled:hover:text-accent-hot disabled:opacity-40"
                   aria-label="Decrease"
                 >
@@ -209,17 +261,18 @@ export default function SuggestNodesModal({
                 <input
                   id="suggest-budget"
                   type="number"
-                  min={MIN_BUDGET}
-                  max={MAX_BUDGET}
+                  min={controlMin}
+                  max={budgetCap}
                   value={budget}
-                  disabled={isComputing}
+                  disabled={isComputing || !hasBudget}
                   onChange={(e) => {
+                    if (!hasBudget) return
                     const v = Number(e.target.value)
                     if (!Number.isFinite(v)) return
                     setBudget(
                       Math.max(
                         MIN_BUDGET,
-                        Math.min(MAX_BUDGET, Math.round(v)),
+                        Math.min(budgetCap, Math.round(v)),
                       ),
                     )
                   }}
@@ -232,9 +285,11 @@ export default function SuggestNodesModal({
                 <button
                   type="button"
                   onClick={() =>
-                    setBudget((b) => Math.min(MAX_BUDGET, b + 1))
+                    setBudget((b) => Math.min(budgetCap, b + 1))
                   }
-                  disabled={isComputing || budget >= MAX_BUDGET}
+                  disabled={
+                    isComputing || !hasBudget || budget >= budgetCap
+                  }
                   className="h-7 w-7 rounded-[3px] border border-border-2 bg-panel-2 font-mono text-[14px] text-muted transition-colors enabled:hover:border-accent-deep enabled:hover:text-accent-hot disabled:opacity-40"
                   aria-label="Increase"
                 >
@@ -246,25 +301,29 @@ export default function SuggestNodesModal({
             <div className="relative">
               <input
                 type="range"
-                min={MIN_BUDGET}
-                max={MAX_BUDGET}
+                min={controlMin}
+                max={budgetCap}
                 value={budget}
-                disabled={isComputing}
+                disabled={isComputing || !hasBudget}
                 onChange={(e) => setBudget(Number(e.target.value))}
                 className="w-full"
                 style={{
                   ['--sl-pct' as never]: `${
-                    ((budget - MIN_BUDGET) / (MAX_BUDGET - MIN_BUDGET)) * 100
+                    hasBudget
+                      ? ((budget - MIN_BUDGET) /
+                          Math.max(1, budgetCap - MIN_BUDGET)) *
+                        100
+                      : 0
                   }%`,
                 }}
                 aria-label="Nodes to allocate"
               />
               <div className="mt-1 flex justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-faint">
-                <span>{MIN_BUDGET}</span>
+                <span>{controlMin}</span>
                 <span className="text-muted">
                   Optimizer evaluates each candidate against current allocation
                 </span>
-                <span>{MAX_BUDGET}</span>
+                <span>{budgetCap}</span>
               </div>
             </div>
 
@@ -273,7 +332,9 @@ export default function SuggestNodesModal({
                 {phase === 'done' && result
                   ? `Used ${result.budgetUsed} of ${result.budgetRequested}`
                   : phase === 'idle'
-                    ? 'Greedy DPS optimizer'
+                    ? hasBudget
+                      ? 'Greedy DPS optimizer'
+                      : 'No Incarnation points left'
                     : phase === 'error'
                       ? 'Last run errored'
                       : 'Iterating…'}
@@ -291,10 +352,11 @@ export default function SuggestNodesModal({
                 <button
                   type="button"
                   onClick={isComputing ? handleReset : handleCalculate}
+                  disabled={!isComputing && !hasBudget}
                   className={
                     isComputing
                       ? 'rounded-[3px] border border-border-2 bg-transparent px-3.5 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-stat-red transition-colors hover:border-stat-red'
-                      : 'rounded-[3px] border border-accent-deep px-3.5 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-accent-hot transition-all hover:border-accent-hot hover:shadow-[0_0_14px_rgba(224,184,100,0.3)]'
+                      : 'rounded-[3px] border border-accent-deep px-3.5 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-accent-hot transition-all enabled:hover:border-accent-hot enabled:hover:shadow-[0_0_14px_rgba(224,184,100,0.3)] disabled:cursor-not-allowed disabled:border-border-2 disabled:text-faint disabled:opacity-60'
                   }
                   style={
                     isComputing
@@ -305,7 +367,11 @@ export default function SuggestNodesModal({
                         }
                   }
                 >
-                  {isComputing ? 'Cancel' : phase === 'done' ? 'Recalculate' : 'Calculate'}
+                  {isComputing
+                    ? 'Cancel'
+                    : phase === 'done'
+                      ? 'Recalculate'
+                      : 'Calculate'}
                 </button>
               </div>
             </div>
@@ -404,7 +470,9 @@ export default function SuggestNodesModal({
                   ? 'Optimizing'
                   : phase === 'error'
                     ? 'Error'
-                    : 'Configure budget'}
+                    : hasBudget
+                      ? 'Configure budget'
+                      : 'No points available'}
             </span>
           </div>
           <div className="flex gap-2">

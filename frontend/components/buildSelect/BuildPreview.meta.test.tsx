@@ -89,6 +89,26 @@ describe('<BuildPreview> metadata', () => {
     expect(screen.getByText('Knight')).toBeInTheDocument()
   })
 
+  it('keeps Hero Level separate from allocated Incarnation nodes', () => {
+    renderPreview('s10', {
+      performance: null,
+      snapshot: {
+        level: 100,
+        heroLevel: 53,
+        activeSkillIds: [],
+        skillRanks: {},
+        allocatedTreeNodes: new Set<number>([1, 2, 3]),
+        allocatedEtherNodes: new Set<number>(),
+        mercClassId: null,
+      },
+      loading: false,
+      available: true,
+    } as unknown as PreviewStats)
+
+    expect(screen.getByText(/Hero Lv\s+53/)).toBeInTheDocument()
+    expect(screen.getByText('3 · 0')).toBeInTheDocument()
+  })
+
   it('shows placeholders when there is no snapshot', () => {
     renderPreview('s10', {
       performance: null,

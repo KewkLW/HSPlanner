@@ -151,6 +151,36 @@ npm run tauri:dev
 | `npm test` | Vitest suite |
 | `npm run lint` | ESLint |
 | `npm run parity` | Rust ↔ TS calculation parity gate (run after touching `calc`) |
+| `npm run import-build -- <payload.json> ["Build name"]` | Import a planner share-payload into the running development app |
+| `npm run patch-build -- <patch.json>` | Revision-check and patch an existing development build profile |
+
+### Development build import and patch
+
+While the development app is running, a share-payload JSON file can be added to
+its saved-build library without UI automation:
+
+```bash
+npm run import-build -- imports/example.json "My build name"
+```
+
+The importer is available only from the loopback interface in development mode,
+uses the planner's normal validation and storage path, and deduplicates an
+identical build.
+
+An existing profile can be updated without creating a duplicate by using an
+allow-listed patch request containing its exact build/profile IDs:
+
+```bash
+npm run patch-build -- imports/example.patch.json
+```
+
+The patch command performs a revision-checked dry run, updates the planner's
+live store and saved profile together, and verifies the result again after the
+autosave window. It currently accepts Incarnation/Ether loadout slots and
+mercenary class/skill ranks; gear and other profile fields cannot be changed by
+this endpoint. Requested node paths must be root-connected for the loaded
+season. If changing the active Incarnation allocation invalidates an equipped
+offhand, the command reports that legality-driven removal explicitly.
 
 ### Project schema
 

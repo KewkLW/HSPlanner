@@ -1,7 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBuild } from './index'
-import { classes, incarnationNodeInfo, items } from '@data'
-import { listSavedBuilds } from '../../utils/build/savedBuilds'
+import {
+  activeSeasonId,
+  classes,
+  etherTree,
+  incarnationNodeInfo,
+  incarnationTree,
+  items,
+} from '@data'
+import {
+  getActiveProfile,
+  listSavedBuilds,
+  loadProfileSnapshot,
+} from '../../utils/build/savedBuilds'
 import { encodeBuildToShare } from '../../utils/build/shareBuild'
 import type { EquippedItem } from '../../types'
 
@@ -111,6 +122,58 @@ describe('build store — commitEquippedItem', () => {
   })
 })
 
+describe('build store — applyOptimizedGear', () => {
+  const weaponA = items.find((i) => i.slot === 'weapon' && !i.twoHanded)!
+  const weaponB = items.find(
+    (i) => i.slot === 'weapon' && !i.twoHanded && i.id !== weaponA.id,
+  )!
+  const helmet = items.find((i) => i.slot === 'helmet')!
+  const charm = items.find((i) => i.slot.startsWith('charm_'))!
+
+  beforeEach(() => {
+    useBuild.setState({ inventory: {}, allocatedTreeNodes: new Set() })
+  })
+
+  it('replaces regular gear with clean bases while preserving special slots', () => {
+    const keptHelmet = {
+      ...makeItem(helmet.id),
+      affixes: [{ affixId: 'kept-roll', tier: 1, roll: 1 }],
+    }
+    const keptCharm = makeItem(charm.id)
+    useBuild.setState({
+      inventory: {
+        weapon: makeItem(weaponA.id),
+        helmet: keptHelmet,
+        charm_1: keptCharm,
+      },
+    })
+
+    useBuild.getState().applyOptimizedGear({
+      weapon: weaponB.id,
+      helmet: helmet.id,
+    })
+
+    const inventory = useBuild.getState().inventory
+    expect(inventory.weapon?.baseId).toBe(weaponB.id)
+    expect(inventory.weapon?.affixes).toEqual([])
+    expect(inventory.helmet?.baseId).toBe(helmet.id)
+    expect(inventory.helmet?.affixes).toEqual([])
+    expect(inventory.helmet).not.toBe(keptHelmet)
+    expect(inventory.charm_1).toBe(keptCharm)
+  })
+
+  it('drops regular slots omitted from the optimized result', () => {
+    useBuild.setState({
+      inventory: {
+        weapon: makeItem(weaponA.id),
+        helmet: makeItem(helmet.id),
+      },
+    })
+    useBuild.getState().applyOptimizedGear({ weapon: weaponB.id })
+    expect(useBuild.getState().inventory.helmet).toBeUndefined()
+  })
+})
+
 describe('build store — dual wielding', () => {
   const wand = items.find((i) => i.baseType === 'Wand')!
   const sword = items.find((i) => i.baseType === 'Sword' && !i.twoHanded)!
@@ -184,6 +247,21 @@ describe('build store — importCodeToLibrary', () => {
     expect(useBuild.getState().storageError).toBeNull()
   })
 
+  it('stores a requested import name and preserves the validated source code', () => {
+    const code = encodeBuildToShare(
+      useBuild.getState().exportBuildSnapshot(),
+      'source-code-only note',
+      's10',
+    )
+
+    const rec = useBuild
+      .getState()
+      .importCodeToLibrary(code, 'Kewk - S10 Frost Orb Gear')
+
+    expect(rec?.name).toBe('Kewk - S10 Frost Orb Gear')
+    expect(getActiveProfile(rec!)?.code).toBe(code)
+  })
+
   it('returns null for an unreadable code and adds nothing', () => {
     const before = listSavedBuilds().length
 
@@ -201,6 +279,216 @@ describe('build store — importCodeToLibrary', () => {
 
     expect(rec).toBeNull()
     expect(useBuild.getState().storageError).not.toBeNull()
+  })
+})
+
+describe('build store — patchSavedBuildProfile', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    useBuild.getState().resetBuild()
+  })
+
+  it('atomically patches the active profile and keeps top-level banks in sync', () => {
+    useBuild.getState().setHeroLevel(1)
+    const record = useBuild.getState().saveCurrentAsNewBuild('Patch target')!
+    const incarnationId = incarnationTree.nodes[0]!.id
+    const etherId = etherTree.nodes[0]!.id
+
+    const result = useBuild.getState().patchSavedBuildProfile(
+      record.id,
+      record.activeProfileId,
+      {
+        incarnationLoadouts: [
+          {
+            index: 1,
+            loadout: {
+              allocatedTreeNodes: new Set([incarnationId]),
+              treeSocketed: {},
+            },
+          },
+        ],
+        activeIncarnationLoadoutIndex: 1,
+        etherLoadouts: [
+          {
+            index: 2,
+            loadout: { allocatedEtherNodes: new Set([etherId]) },
+          },
+        ],
+        activeEtherLoadoutIndex: 2,
+        mercClassId: 'merc_magister',
+        mercSkillRanks: { elemental_intellect: 8 },
+      },
+      activeSeasonId,
+      getActiveProfile(record)!.updatedAt,
+    )
+
+    expect(result).toBe('applied')
+    const live = useBuild.getState()
+    expect(live.activeBuildId).toBe(record.id)
+    expect(live.activeProfileId).toBe(record.activeProfileId)
+    expect(live.allocatedTreeNodes).toEqual(new Set([incarnationId]))
+    expect(live.incarnationLoadouts[1]?.allocatedTreeNodes).toEqual(
+      new Set([incarnationId]),
+    )
+    expect(live.allocatedEtherNodes).toEqual(new Set([etherId]))
+    expect(live.etherLoadouts[2]?.allocatedEtherNodes).toEqual(new Set([etherId]))
+    expect(live.mercSkillRanks).toEqual({ elemental_intellect: 8 })
+
+    const persisted = loadProfileSnapshot(record.id, record.activeProfileId)!
+    expect(persisted.allocatedTreeNodes).toEqual(new Set([incarnationId]))
+    expect(persisted.allocatedEtherNodes).toEqual(new Set([etherId]))
+    expect(persisted.mercClassId).toBe('merc_magister')
+  })
+
+  it('rejects an Incarnation patch above the saved Hero-Level budget', () => {
+    const roots = incarnationTree.nodes
+      .filter((node) => node.t === 'root')
+      .slice(0, 2)
+      .map((node) => node.id)
+    expect(roots).toHaveLength(2)
+    useBuild.getState().setHeroLevel(1)
+    const record = useBuild.getState().saveCurrentAsNewBuild('Capped patch')!
+
+    const result = useBuild.getState().patchSavedBuildProfile(
+      record.id,
+      record.activeProfileId,
+      {
+        incarnationLoadouts: [
+          {
+            index: 0,
+            loadout: {
+              allocatedTreeNodes: new Set(roots),
+              treeSocketed: {},
+            },
+          },
+        ],
+      },
+      activeSeasonId,
+      getActiveProfile(record)!.updatedAt,
+    )
+
+    expect(result).toBe('rejected')
+    expect(useBuild.getState().heroLevel).toBe(1)
+    expect(useBuild.getState().allocatedTreeNodes.size).toBe(0)
+    expect(
+      loadProfileSnapshot(record.id, record.activeProfileId)?.heroLevel,
+    ).toBe(1)
+  })
+
+  it('rejects a patch that selects an empty loadout slot', () => {
+    const record = useBuild.getState().saveCurrentAsNewBuild('Patch target')!
+
+    expect(
+      useBuild.getState().patchSavedBuildProfile(
+        record.id,
+        record.activeProfileId,
+        { activeEtherLoadoutIndex: 3 },
+        activeSeasonId,
+        getActiveProfile(record)!.updatedAt,
+      ),
+    ).toBe('rejected')
+    expect(useBuild.getState().activeEtherLoadoutIndex).toBe(0)
+  })
+
+  it('preserves sockets on retained Incarnation nodes', () => {
+    const rootId = incarnationTree.nodes.find((node) => node.t === 'root')!.id
+    useBuild.setState({
+      heroLevel: 1,
+      allocatedTreeNodes: new Set([rootId]),
+      treeSocketed: { [rootId]: { kind: 'item', id: 'retained-jewel' } },
+    })
+    const record = useBuild.getState().saveCurrentAsNewBuild('Socket target')!
+
+    expect(
+      useBuild.getState().patchSavedBuildProfile(
+        record.id,
+        record.activeProfileId,
+        {
+          incarnationLoadouts: [
+            {
+              index: 0,
+              loadout: {
+                allocatedTreeNodes: new Set([rootId]),
+                treeSocketed: {},
+              },
+            },
+          ],
+        },
+        activeSeasonId,
+        getActiveProfile(record)!.updatedAt,
+      ),
+    ).toBe('applied')
+    expect(useBuild.getState().treeSocketed[rootId]).toEqual({
+      kind: 'item',
+      id: 'retained-jewel',
+    })
+  })
+
+  it('revalidates offhand legality when the active Incarnation slot changes', () => {
+    const wand = items.find((item) => item.baseType === 'Wand')!
+    const masterOfWands = Number(
+      Object.entries(incarnationNodeInfo).find(
+        ([, info]) => info.t === 'Master of Wands',
+      )![0],
+    )
+    useBuild.setState({
+      heroLevel: 1,
+      allocatedTreeNodes: new Set([masterOfWands]),
+    })
+    useBuild.getState().commitEquippedItem('weapon', makeItem(wand.id))
+    useBuild.getState().commitEquippedItem('offhand', makeItem(wand.id))
+    const record = useBuild.getState().saveCurrentAsNewBuild('Offhand target')!
+
+    expect(
+      useBuild.getState().patchSavedBuildProfile(
+        record.id,
+        record.activeProfileId,
+        {
+          incarnationLoadouts: [
+            {
+              index: 0,
+              loadout: { allocatedTreeNodes: new Set(), treeSocketed: {} },
+            },
+          ],
+        },
+        activeSeasonId,
+        getActiveProfile(record)!.updatedAt,
+      ),
+    ).toBe('applied')
+    expect(useBuild.getState().inventory.offhand).toBeUndefined()
+  })
+
+  it('rejects a stale profile revision', () => {
+    const record = useBuild.getState().saveCurrentAsNewBuild('CAS target')!
+    expect(
+      useBuild.getState().patchSavedBuildProfile(
+        record.id,
+        record.activeProfileId,
+        { mercClassId: null, mercSkillRanks: {} },
+        activeSeasonId,
+        'stale-revision',
+      ),
+    ).toBe('conflict')
+  })
+
+  it('rejects an expected season mismatch as a retryable conflict', () => {
+    const record = useBuild.getState().saveCurrentAsNewBuild('Season CAS target')!
+
+    expect(
+      useBuild.getState().patchSavedBuildProfile(
+        record.id,
+        record.activeProfileId,
+        {
+          mercClassId: 'merc_magister',
+          mercSkillRanks: { elemental_intellect: 8 },
+        },
+        `${activeSeasonId}-stale`,
+        getActiveProfile(record)!.updatedAt,
+      ),
+    ).toBe('conflict')
+    expect(
+      loadProfileSnapshot(record.id, record.activeProfileId)!.mercClassId,
+    ).toBeNull()
   })
 })
 

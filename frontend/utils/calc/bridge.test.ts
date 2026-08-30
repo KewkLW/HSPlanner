@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import type { Skill } from '../../types'
 import {
   __depsToInputForTest,
   computeBuildPerformanceAsync,
   manaCostAtRankNative,
+  optimizeGearNative,
   passiveStatsAtRankNative,
   setBridgeErrorListener,
   type BuildPerformanceOutput,
@@ -14,8 +16,12 @@ import { activeSeasonId } from '@data'
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(),
+}))
 
 const mockedInvoke = vi.mocked(invoke)
+const mockedListen = vi.mocked(listen)
 const fakeSkill = { id: 'x', name: 'X' } as unknown as Skill
 
 describe('bridge error notification', () => {
@@ -91,6 +97,136 @@ describe('depsToInput season', () => {
   })
   it('falls back to the active season when deps season is absent', () => {
     expect(__depsToInputForTest(baseDeps()).season).toBe(activeSeasonId)
+  })
+})
+
+describe('optimizeGearNative', () => {
+  const unlisten = vi.fn()
+
+  beforeEach(() => {
+    mockedInvoke.mockReset()
+    mockedListen.mockReset()
+    unlisten.mockReset()
+    mockedListen.mockResolvedValue(unlisten)
+    setBridgeErrorListener(null)
+  })
+
+  it('forces the selected spell and cleans up its progress listener', async () => {
+    mockedInvoke.mockResolvedValue({
+      baseIds: { weapon: 'best' },
+      beforeScore: 10,
+      afterScore: 20,
+      evaluated: 100,
+      passes: 2,
+      thresholdsMet: true,
+      thresholdValues: { 'stat:life': 5000 },
+      exact: false,
+    })
+    const progress = vi.fn()
+    const promise = optimizeGearNative(
+      { ...baseDeps('s10'), activeSkillIds: ['first', 'second'] },
+      'second',
+      {
+        thresholds: { 'stat:life': 5000 },
+        rarityFilter: { mode: 'at_least', rarity: 'satanic' },
+        onProgress: progress,
+      },
+    )
+
+    expect(mockedListen).toHaveBeenCalledWith(
+      'gear-optimizer-progress',
+      expect.any(Function),
+    )
+    await expect(promise).resolves.toMatchObject({ afterScore: 20 })
+    expect(mockedInvoke).toHaveBeenCalledWith(
+      'optimize_gear',
+      expect.objectContaining({
+        input: expect.objectContaining({
+          selectedSkillId: 'second',
+          perf: expect.objectContaining({
+            mainSkillId: 'second',
+            season: 's10',
+          }),
+          thresholds: { 'stat:life': 5000 },
+          rarityFilter: { mode: 'at_least', rarity: 'satanic' },
+        }),
+      }),
+    )
+    expect(unlisten).toHaveBeenCalledTimes(1)
+  })
+
+  it('cleans up the listener when native optimization fails', async () => {
+    mockedInvoke.mockRejectedValue(new Error('optimizer failed'))
+    await expect(
+      optimizeGearNative(baseDeps(), 'first', {
+        thresholds: {},
+        rarityFilter: null,
+        onProgress: () => {},
+      }),
+    ).rejects.toThrow('optimizer failed')
+    expect(unlisten).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a concurrent optimization and releases the lock afterward', async () => {
+    let resolveInvoke: (value: unknown) => void = () => {}
+    mockedInvoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveInvoke = resolve
+        }),
+    )
+    const first = optimizeGearNative(baseDeps(), 'first', {
+      thresholds: {},
+      rarityFilter: null,
+    })
+
+    await expect(
+      optimizeGearNative(baseDeps(), 'second', {
+        thresholds: {},
+        rarityFilter: null,
+      }),
+    ).rejects.toThrow(/already running/i)
+    expect(mockedInvoke).toHaveBeenCalledTimes(1)
+
+    resolveInvoke({
+      baseIds: {},
+      beforeScore: 0,
+      afterScore: 0,
+      evaluated: 0,
+      passes: 0,
+      thresholdsMet: true,
+      thresholdValues: {},
+      exact: false,
+    })
+    await expect(first).resolves.toMatchObject({ thresholdsMet: true })
+  })
+
+  it('releases the run lock when progress listener setup fails', async () => {
+    mockedListen.mockRejectedValueOnce(new Error('listener unavailable'))
+    await expect(
+      optimizeGearNative(baseDeps(), 'first', {
+        thresholds: {},
+        rarityFilter: null,
+        onProgress: () => {},
+      }),
+    ).rejects.toThrow('listener unavailable')
+
+    mockedInvoke.mockResolvedValue({
+      baseIds: {},
+      beforeScore: 0,
+      afterScore: 0,
+      evaluated: 0,
+      passes: 0,
+      thresholdsMet: true,
+      thresholdValues: {},
+      exact: false,
+    })
+    await expect(
+      optimizeGearNative(baseDeps(), 'second', {
+        thresholds: {},
+        rarityFilter: null,
+      }),
+    ).resolves.toMatchObject({ thresholdsMet: true })
   })
 })
 

@@ -5,6 +5,10 @@ import {
 } from './lib/upgradeAdvisor'
 import { useBuildPerformanceDeps } from '../../hooks/useBuildPerformanceDeps'
 import type { SlotKey } from '../../types'
+import {
+  resolveAllocatedDamageSkillId,
+  withExactDamageSkillTarget,
+} from '../../utils/build/damageSkillTarget'
 
 const ADVISOR_TITLE =
   'Compares bare item bases via engine DPS: your current base vs the best base for the slot. Move affixes separately.'
@@ -87,7 +91,8 @@ export function UpgradeAdvisor({ onPickSlot }: UpgradeAdvisorProps) {
   const deps = useBuildPerformanceDeps()
   const [state, setState] = useState<ScanState>({ phase: 'idle' })
   const epochRef = useRef(0)
-  const hasSkill = deps.activeSkillIds.length > 0
+  const targetSkillId = resolveAllocatedDamageSkillId(deps)
+  const hasSkill = targetSkillId !== null
 
   useEffect(() => {
     epochRef.current += 1
@@ -96,10 +101,12 @@ export function UpgradeAdvisor({ onPickSlot }: UpgradeAdvisorProps) {
   }, [deps])
 
   const startScan = async () => {
+    if (!targetSkillId || state.phase === 'scanning') return
     const epoch = epochRef.current
     setState({ phase: 'scanning', done: 0, total: 0 })
     try {
-      const result = await scanForUpgrades(deps, (done, total) => {
+      const scoringDeps = withExactDamageSkillTarget(deps, targetSkillId)
+      const result = await scanForUpgrades(scoringDeps, (done, total) => {
         if (epochRef.current === epoch)
           setState({ phase: 'scanning', done, total })
       })
@@ -154,7 +161,7 @@ export function UpgradeAdvisor({ onPickSlot }: UpgradeAdvisorProps) {
 
       {!hasSkill && (
         <p className="font-mono text-[12px] italic tracking-[0.04em] text-muted">
-          select a main skill first
+          allocate a damaging active skill first
         </p>
       )}
 

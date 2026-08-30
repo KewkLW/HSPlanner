@@ -4,19 +4,31 @@ import type {
   CustomStat,
   EquippedItem,
   Inventory,
+  GearOptimizerRarityFilter,
+  EtherLoadout,
+  IncarnationLoadout,
+  LoadoutSlots,
+  SavedBuildAllocationPatch,
   SlotKey,
   SocketType,
+  SpecLoadout,
   StashEntry,
   TreeSocketContent,
 } from '../../types'
 import type { Folder, SavedBuild } from '../../utils/build/savedBuilds'
 import type { BuildSnapshot } from '../../utils/build/shareBuild'
 
+export type SavedBuildProfilePatchResult =
+  | 'applied'
+  | 'conflict'
+  | 'rejected'
+
 export type AttrMap = Record<AttributeKey, number>
 
 export interface BuildState {
   classId: string | null
   level: number
+  heroLevel: number
   allocated: AttrMap
   inventory: Inventory
   skillRanks: Record<string, number>
@@ -35,6 +47,13 @@ export interface BuildState {
   enemyResistances: Record<string, number>
   subskillRanks: Record<string, number>
   allocatedEtherNodes: Set<number>
+  specLoadouts: LoadoutSlots<SpecLoadout>
+  activeSpecLoadoutIndex: number
+  incarnationLoadouts: LoadoutSlots<IncarnationLoadout>
+  activeIncarnationLoadoutIndex: number
+  etherLoadouts: LoadoutSlots<EtherLoadout>
+  activeEtherLoadoutIndex: number
+  allocationLoadoutNavigationVersion: number
   mercClassId: string | null
   mercSkillRanks: Record<string, number>
   mercInventory: Inventory
@@ -46,24 +65,35 @@ export interface BuildState {
   notes: string
   customStats: CustomStat[]
   stash: StashEntry[]
+  gearOptimizerThresholds: Record<string, number>
+  gearOptimizerRarityFilter: GearOptimizerRarityFilter
 }
 
 export interface BuildActions {
   setClass: (id: string) => void
   setLevel: (lvl: number) => void
+  setHeroLevel: (lvl: number) => void
   incAttr: (key: AttributeKey, amount?: number) => void
   decAttr: (key: AttributeKey, amount?: number) => void
   resetAttrs: () => void
   equipItem: (slot: SlotKey, baseId: string) => void
   unequipItem: (slot: SlotKey) => void
   commitEquippedItem: (slot: SlotKey, item: EquippedItem | null) => void
+  applyOptimizedGear: (baseIds: Record<string, string>) => void
   setSocketCount: (slot: SlotKey, count: number) => void
   setSocketed: (slot: SlotKey, idx: number, socketableId: string | null) => void
   setSocketType: (slot: SlotKey, idx: number, type: SocketType) => void
   setStars: (slot: SlotKey, count: number) => void
   exportBuildSnapshot: () => BuildSnapshot
   importBuildSnapshot: (snapshot: BuildSnapshot, notes?: string) => void
-  importCodeToLibrary: (code: string) => SavedBuild | null
+  importCodeToLibrary: (code: string, name?: string) => SavedBuild | null
+  patchSavedBuildProfile: (
+    buildId: string,
+    profileId: string,
+    patch: SavedBuildAllocationPatch,
+    expectedSeason: string,
+    expectedRevision: string,
+  ) => SavedBuildProfilePatchResult
   applyRuneword: (slot: SlotKey, runewordId: string) => void
   setAugment: (augmentId: string | null) => void
   setAugmentLevel: (level: number) => void
@@ -82,6 +112,12 @@ export interface BuildActions {
   resetTreeNodes: () => void
   toggleEtherNode: (nodeId: number) => void
   resetEtherNodes: () => void
+  createSpecLoadout: (index: number) => void
+  switchSpecLoadout: (index: number) => void
+  createIncarnationLoadout: (index: number) => void
+  switchIncarnationLoadout: (index: number) => void
+  createEtherLoadout: (index: number) => void
+  switchEtherLoadout: (index: number) => void
   setMercClass: (id: string | null) => void
   setMercSkillRank: (skillId: string, rank: number, maxRank?: number) => void
   commitMercItem: (slot: SlotKey, item: EquippedItem | null) => void
@@ -122,6 +158,9 @@ export interface BuildActions {
   addStashItem: (item: EquippedItem) => void
   removeStashItem: (id: string) => void
   setCustomStats: (stats: CustomStat[]) => void
+  setGearOptimizerThreshold: (statKey: string, minimum: number | null) => void
+  clearGearOptimizerThresholds: () => void
+  setGearOptimizerRarityFilter: (filter: GearOptimizerRarityFilter) => void
   loadSavedBuild: (buildId: string, profileId?: string) => boolean
   changeActiveSeason: (season: string) => void
   switchActiveProfile: (profileId: string) => boolean

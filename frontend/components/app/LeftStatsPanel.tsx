@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { gameConfig, getClass, getSkillsByClass } from "@data";
 import { EhpRows } from "../EhpRows";
 import { compactRange } from "../../utils/compactNumber";
@@ -19,10 +19,23 @@ import {
 } from "../../utils/item/stats";
 import { computeBuildPerformanceAsync } from "../../utils/calc/bridge";
 import type { BuildPerformance } from "../../utils/build/buildPerformance";
-import { heroLevelFor } from "../../utils/build/heroLevel";
+import { incarnationPointsSpent } from "../../utils/build/heroLevel";
 import { useBuildPerformanceDeps } from "../../hooks/useBuildPerformanceDeps";
 import { useCalcResult } from "../../hooks/useCalcResult";
 import type { RangedValue } from "../../types";
+import {
+  GEAR_OPTIMIZER_THRESHOLD_MAX,
+  GEAR_OPTIMIZER_THRESHOLD_MIN,
+  gearOptimizerThresholdId,
+  isGearOptimizerThresholdValue,
+  type GearOptimizerThresholdKind,
+} from "../../types";
+import {
+  Modal,
+  MODAL_BTN_CLASS,
+  MODAL_BTN_PRIMARY_CLASS,
+  MODAL_FOOTER_CLASS,
+} from "../ui/Modal";
 import {
   ATTRIBUTE_ORDER,
   ATTR_COLOR,
@@ -49,6 +62,7 @@ import {
 export default function LeftStatsPanel() {
   const classId = useBuild((s) => s.classId);
   const level = useBuild((s) => s.level);
+  const heroLevel = useBuild((s) => s.heroLevel);
   const allocated = useBuild((s) => s.allocated);
   const skillRanks = useBuild((s) => s.skillRanks);
   const activeSkillIds = useBuild((s) => s.activeSkillIds);
@@ -80,7 +94,9 @@ export default function LeftStatsPanel() {
   const attrTotal = attrPointsFor(level);
   const skillSpent = Object.values(skillRanks).reduce((s, v) => s + v, 0);
   const skillTotal = skillPointsFor(level);
-  const heroLevel = heroLevelFor(buildDeps);
+  const incarnationSpent = incarnationPointsSpent(
+    buildDeps.allocatedTreeNodes.size,
+  );
 
   const allClassSkills = useMemo(() => getSkillsByClass(classId), [classId]);
   const classSkills = useMemo(
@@ -209,7 +225,7 @@ export default function LeftStatsPanel() {
           <>
             {activeSkillIds.length === 0 ? (
               <div className="mb-2 font-mono text-[11px] tracking-[0.04em] text-muted italic">
-                Pick active skills in the Skills tab
+                Pick active skills in the Spec tab
               </div>
             ) : (
               <div className="mb-2 flex flex-col gap-1">
@@ -491,11 +507,12 @@ export default function LeftStatsPanel() {
           }
         />
         <Row
-          label="Tree nodes"
+          label="Incarnation pts"
           value={
-            <span className="text-text">
-              {heroLevel}
-            </span>
+            <>
+              <span className="text-text">{incarnationSpent}</span>
+              <span className="text-muted">/{heroLevel}</span>
+            </>
           }
         />
       </Section>
@@ -514,11 +531,19 @@ export default function LeftStatsPanel() {
               <span className={`${color} flex-1 min-w-0 leading-tight`}>
                 {attr.name}
               </span>
-              <span
-                className={`font-mono tabular-nums shrink-0 whitespace-nowrap text-right ${color}`}
-              >
-                {formatValue(v ?? 0, key)}
-              </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span
+                  className={`font-mono tabular-nums whitespace-nowrap text-right ${color}`}
+                >
+                  {formatValue(v ?? 0, key)}
+                </span>
+                <ThresholdControl
+                  kind="attribute"
+                  statKey={key}
+                  label={attr.name}
+                  currentValue={v ?? 0}
+                />
+              </div>
             </div>
           );
         })}
@@ -560,7 +585,7 @@ export default function LeftStatsPanel() {
 
       <Section title="Resistances">
         {RESISTANCES.map((r) => {
-          const v = stats[r.key] ?? 0;
+          const v = effectiveStatValue(stats, statsCombined, r.key);
           const cap = effectiveCap(r.key, stats);
           const zero = isZero(v);
           const numeric = typeof v === "number" ? v : 0;
@@ -573,20 +598,28 @@ export default function LeftStatsPanel() {
               <span className={`${r.className} flex-1 min-w-0 leading-tight`}>
                 {r.label}
               </span>
-              <span
-                className={`font-mono tabular-nums shrink-0 whitespace-nowrap text-right ${zero ? "text-faint" : r.className}`}
-              >
-                {zero ? (
-                  "—"
-                ) : capped ? (
-                  <>
-                    {cap}%{" "}
-                    <span className="text-faint text-[10px]">({numeric}%)</span>
-                  </>
-                ) : (
-                  formatValue(v, r.key)
-                )}
-              </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span
+                  className={`font-mono tabular-nums whitespace-nowrap text-right ${zero ? "text-faint" : r.className}`}
+                >
+                  {zero ? (
+                    "—"
+                  ) : capped ? (
+                    <>
+                      {cap}%{" "}
+                      <span className="text-faint text-[10px]">({numeric}%)</span>
+                    </>
+                  ) : (
+                    formatValue(v, r.key)
+                  )}
+                </span>
+                <ThresholdControl
+                  kind="stat"
+                  statKey={r.key}
+                  label={`${r.label} resistance`}
+                  currentValue={v}
+                />
+              </div>
             </div>
           );
         })}
@@ -624,16 +657,162 @@ function StatLine({
       <span className={`${labelClass} flex-1 min-w-0 leading-tight`}>
         {label}
       </span>
-      <span
-        className={`font-mono tabular-nums shrink-0 whitespace-nowrap text-right ${valueClass}`}
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span
+          className={`font-mono tabular-nums whitespace-nowrap text-right ${valueClass}`}
+        >
+          {zero ? "—" : formatValue(value, statKey)}
+          {!zero && rawValue !== undefined && (
+            <span className="block text-faint font-normal text-[10px] leading-tight">
+              ({formatValue(rawValue, statKey)})
+            </span>
+          )}
+        </span>
+        <ThresholdControl
+          kind="stat"
+          statKey={statKey}
+          label={label}
+          currentValue={value}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function ThresholdControl({
+  kind,
+  statKey,
+  label,
+  currentValue,
+}: {
+  kind: GearOptimizerThresholdKind;
+  statKey: string;
+  label: string;
+  currentValue: RangedValue;
+}) {
+  const thresholdId = gearOptimizerThresholdId(kind, statKey);
+  const threshold = useBuild((s) => s.gearOptimizerThresholds[thresholdId]);
+  const setThreshold = useBuild((s) => s.setGearOptimizerThreshold);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [draftError, setDraftError] = useState("");
+
+  const beginEdit = () => {
+    const fallback = rangedMin(currentValue);
+    setDraft(String(threshold ?? fallback));
+    setDraftError("");
+    setOpen(true);
+  };
+
+  const save = () => {
+    if (draft.trim() === "") {
+      setDraftError("Enter a minimum value.");
+      return;
+    }
+    const next = Number(draft);
+    if (!Number.isFinite(next)) {
+      setDraftError("Enter a finite number.");
+      return;
+    }
+    if (!isGearOptimizerThresholdValue(next)) {
+      setDraftError(
+        `Enter a value from ${GEAR_OPTIMIZER_THRESHOLD_MIN.toLocaleString()} to ${GEAR_OPTIMIZER_THRESHOLD_MAX.toLocaleString()}.`,
+      );
+      return;
+    }
+    setThreshold(thresholdId, next);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative flex shrink-0 items-center">
+      <button
+        type="button"
+        aria-label={`${threshold === undefined ? "Add" : "Edit"} minimum ${label} optimizer threshold`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title={
+          threshold === undefined
+            ? `Add optimizer minimum for ${label}`
+            : `Edit optimizer minimum for ${label}: ${threshold}`
+        }
+        onClick={beginEdit}
+        className={`min-w-5 rounded-[3px] border px-1 py-0.5 font-mono text-[9px] leading-none transition-colors ${
+          threshold === undefined
+            ? "border-border-2 text-faint hover:border-accent-deep hover:text-accent-hot"
+            : "border-accent-deep/70 bg-accent-hot/10 text-accent-hot"
+        }`}
       >
-        {zero ? "—" : formatValue(value, statKey)}
-        {!zero && rawValue !== undefined && (
-          <span className="block text-faint font-normal text-[10px] leading-tight">
-            ({formatValue(rawValue, statKey)})
-          </span>
-        )}
-      </span>
+        {threshold === undefined ? "+" : "≥"}
+      </button>
+
+      {open && (
+        <Modal
+          onClose={() => setOpen(false)}
+          panelClassName="w-[min(92vw,380px)]"
+          eyebrow="Gear optimizer"
+          title={`Minimum ${label}`}
+          subtitle={`Require every suggested loadout to reach at least ${threshold ?? "this value"}. Current guaranteed value: ${formatNumRange(rangedMin(currentValue), rangedMin(currentValue))}.`}
+        >
+          <form
+            noValidate
+            aria-label={`Minimum ${label} optimizer threshold`}
+            onSubmit={(event) => {
+              event.preventDefault();
+              save();
+            }}
+          >
+            <div className="px-6 py-5">
+              <label className="block font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+                Minimum value
+                <input
+                  autoFocus
+                  type="number"
+                  step="any"
+                  min={GEAR_OPTIMIZER_THRESHOLD_MIN}
+                  max={GEAR_OPTIMIZER_THRESHOLD_MAX}
+                  value={draft}
+                  aria-invalid={draftError !== ""}
+                  onChange={(event) => {
+                    setDraft(event.target.value);
+                    setDraftError("");
+                  }}
+                  className="mt-2 w-full rounded-[3px] border border-border-2 bg-bg px-3 py-2 font-mono text-[14px] normal-case tracking-normal text-text focus:border-accent-hot focus:outline-none"
+                />
+              </label>
+              {draftError && (
+                <p className="mt-2 font-mono text-[10px] text-stat-red" role="alert">
+                  {draftError}
+                </p>
+              )}
+            </div>
+            <div className={MODAL_FOOTER_CLASS}>
+              {threshold !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setThreshold(thresholdId, null);
+                    setOpen(false);
+                  }}
+                  className={`${MODAL_BTN_CLASS} mr-auto text-stat-red`}
+                >
+                  Remove
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className={MODAL_BTN_CLASS}
+              >
+                Cancel
+              </button>
+              <button type="submit" className={MODAL_BTN_PRIMARY_CLASS}>
+                Set minimum
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

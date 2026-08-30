@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import treeBackground from '../assets/atlas/Incarnation_Background.png'
+import etherBackground from '../assets/atlas/Incarnation_Background.png'
 import { useBuild } from '../store/build'
 import { findPath, reachableFromAny } from '../utils/tree/treeGraph'
 import {
@@ -328,7 +328,7 @@ export default function EtherView() {
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: `url(${treeBackground})`,
+          backgroundImage: `url(${etherBackground})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           transform: 'translateZ(0)',

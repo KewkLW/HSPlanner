@@ -1,17 +1,21 @@
 export function rankPointOrder(
   ranks: Record<string, number>,
-  requires?: (id: string) => string | undefined,
+  requiresAllOf?: (id: string) => string | readonly string[] | undefined,
 ): string[] {
   const remaining = Object.keys(ranks)
   const result: string[] = []
   const taken = new Set<string>()
 
   const isEligible = (id: string): boolean => {
-    if (!requires) return true
-    const prereq = requires(id)
-    if (prereq == null) return true
-    if (!(prereq in ranks)) return true
-    return taken.has(prereq)
+    if (!requiresAllOf) return true
+    const prerequisiteIds = requiresAllOf(id)
+    if (prerequisiteIds == null) return true
+    const list = Array.isArray(prerequisiteIds)
+      ? prerequisiteIds
+      : [prerequisiteIds]
+    return list.every((prerequisiteId) =>
+      prerequisiteId in ranks ? taken.has(prerequisiteId) : true,
+    )
   }
 
   while (remaining.length > 0) {

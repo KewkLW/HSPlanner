@@ -33,6 +33,14 @@ describe('canOffhand — base game rules, no incarnation notes', () => {
     expect(canOffhand(SWORD_1H, SWORD_1H, NONE)).toBe(true)
   })
 
+  it('allows Book of Cold Death with Glacier Talons for Jötunn', () => {
+    const book = getItem('book_heroic_book_of_cold_death')!
+    const talons = getItem('claw_heroic_glacier_talons')!
+    expect(book.twoHanded).not.toBe(true)
+    expect(talons.twoHanded).not.toBe(true)
+    expect(canOffhand(talons, book, NONE)).toBe(true)
+  })
+
   it('takes a shield next to a one-handed weapon', () => {
     expect(canOffhand(SHIELD, SWORD_1H, NONE)).toBe(true)
   })

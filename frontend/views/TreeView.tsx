@@ -6,7 +6,7 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
-import treeBackground from '../assets/atlas/Incarnation_Background.png'
+import incarnationBackground from '../assets/atlas/Incarnation_Brick_Background.png'
 import { useBuild } from '../store/build'
 import {
   ADJ,
@@ -54,9 +54,20 @@ import {
 } from './tree/nodePaint'
 import { zoomAtPoint } from '../utils/tree/viewTransform'
 import { NodeTooltip } from './tree/NodeTooltip'
+import {
+  incarnationNodeBudgetFor,
+  incarnationPointsSpent,
+  maxAllocatedIncarnationNodes,
+} from '../utils/build/heroLevel'
 
 export default function TreeView() {
   const allocated = useBuild((s) => s.allocatedTreeNodes)
+  const heroLevel = useBuild((s) => s.heroLevel)
+  const incarnationLoadouts = useBuild((s) => s.incarnationLoadouts)
+  const activeIncarnationLoadoutIndex = useBuild(
+    (s) => s.activeIncarnationLoadoutIndex,
+  )
+  const setHeroLevel = useBuild((s) => s.setHeroLevel)
   const toggleNode = useBuild((s) => s.toggleTreeNode)
   const resetTree = useBuild((s) => s.resetTreeNodes)
   const applySuggestedNodes = useBuild((s) => s.applySuggestedNodes)
@@ -69,6 +80,13 @@ export default function TreeView() {
   const [suggestedPreview, setSuggestedPreview] = useState<Set<number> | null>(
     null,
   )
+  const nodeBudget = incarnationNodeBudgetFor(heroLevel)
+  const remainingNodes = Math.max(0, nodeBudget - allocated.size)
+  const minimumHeroLevel = maxAllocatedIncarnationNodes({
+    allocatedTreeNodes: allocated,
+    incarnationLoadouts,
+    activeIncarnationLoadoutIndex,
+  })
 
   const treeDeps = useBuildPerformanceDeps()
 
@@ -208,8 +226,13 @@ export default function TreeView() {
     const sources = new Set<number>([...allocated, ...START_IDS])
     const path = findPath(sources, hoverId)
     if (!path) return null
+    const added = path.reduce(
+      (count, id) => count + (allocated.has(id) ? 0 : 1),
+      0,
+    )
+    if (added > remainingNodes) return null
     return new Set(path)
-  }, [progressStep, hoverId, allocated])
+  }, [progressStep, hoverId, allocated, remainingNodes])
 
   const previewEdgeKeys = useMemo(() => {
     if (!previewPath) return null
@@ -248,10 +271,11 @@ export default function TreeView() {
     null,
   )
 
-  const singleNodeAllocation = useMemo<Set<number> | null>(
-    () => (hoverId == null ? null : withToggled(allocated, hoverId)),
-    [hoverId, allocated],
-  )
+  const singleNodeAllocation = useMemo<Set<number> | null>(() => {
+    if (hoverId == null) return null
+    if (!allocated.has(hoverId) && allocated.size >= nodeBudget) return null
+    return withToggled(allocated, hoverId)
+  }, [hoverId, allocated, nodeBudget])
 
   const singleNodePerformance = useCalcResult<BuildPerformance | null>(
     () =>
@@ -470,14 +494,15 @@ export default function TreeView() {
   }, [visibleAllocated])
 
   return (
-    <div className="relative h-full" style={{ backgroundColor: '#0a0b0f' }}>
+    <div className="relative h-full" style={{ backgroundColor: '#090205' }}>
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: `url(${treeBackground})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundImage: `linear-gradient(rgba(24,0,10,0.14), rgba(3,0,3,0.44)), url(${incarnationBackground})`,
+          backgroundRepeat: 'no-repeat, repeat',
+          backgroundSize: '100% 100%, 384px 128px',
+          backgroundPosition: 'center, top left',
           transform: 'translateZ(0)',
           willChange: 'transform',
         }}
@@ -586,6 +611,24 @@ export default function TreeView() {
       />
 
       <div className="pointer-events-none absolute right-3.5 top-3 z-10 flex items-start gap-1.5">
+        <label
+          className="pointer-events-auto flex items-center gap-2 rounded-[3px] border border-border-2 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-faint"
+          style={{
+            background: 'linear-gradient(180deg, #0d0e12, var(--color-panel-2))',
+            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.5)',
+          }}
+        >
+          Hero Lv
+          <input
+            type="number"
+            min={minimumHeroLevel}
+            step={1}
+            value={heroLevel}
+            onChange={(e) => setHeroLevel(Number(e.target.value))}
+            aria-label="Hero Level"
+            className="w-12 bg-transparent text-center font-mono text-[11px] font-semibold tabular-nums text-accent-hot outline-none"
+          />
+        </label>
         <div className="pointer-events-auto relative">
           <svg
             aria-hidden
@@ -630,8 +673,14 @@ export default function TreeView() {
         </div>
         <button
           onClick={() => setSuggestOpen(true)}
+          disabled={remainingNodes === 0}
+          title={
+            remainingNodes === 0
+              ? 'No Incarnation points left at this Hero Level'
+              : undefined
+          }
           data-tour="tree-suggest"
-          className="pointer-events-auto rounded-[3px] border border-accent-deep bg-panel-2 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-accent-hot transition-all hover:border-accent-hot hover:shadow-[0_0_12px_rgba(224,184,100,0.25)]"
+          className="pointer-events-auto rounded-[3px] border border-accent-deep bg-panel-2 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-accent-hot transition-all enabled:hover:border-accent-hot enabled:hover:shadow-[0_0_12px_rgba(224,184,100,0.25)] disabled:cursor-not-allowed disabled:border-border-2 disabled:text-faint disabled:opacity-60"
           style={{ background: 'linear-gradient(180deg, #2a2418, #1a1410)' }}
         >
           Suggest
@@ -675,8 +724,10 @@ export default function TreeView() {
             className="inline-block h-1 w-1 rotate-45 bg-accent-hot"
             style={{ boxShadow: '0 0 6px rgba(224,184,100,0.6)' }}
           />
-          Allocated
-          <span className="text-accent-hot">{allocated.size}</span>
+          Points
+          <span className="text-accent-hot">
+            {incarnationPointsSpent(allocated.size)} / {heroLevel}
+          </span>
         </span>
         <span aria-hidden className="h-3 w-px bg-border" />
         <span className="inline-flex items-center gap-1.5">
@@ -743,6 +794,7 @@ export default function TreeView() {
       {suggestOpen && (
         <SuggestNodesModal
           currentAllocation={allocated}
+          maxBudget={remainingNodes}
           deps={treeDeps}
           onPreviewChange={setSuggestedPreview}
           onApply={(nodes) => applySuggestedNodes(nodes)}

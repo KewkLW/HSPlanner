@@ -9,7 +9,10 @@ import {
 import { guardStorage } from '../storageError'
 import { useSettings } from '../settings'
 import { sanitizeHtml } from '../../utils/sanitizeHtml'
-import { clearSeasonBoundAllocations } from '../../utils/build/seasonMigration'
+import {
+  clearSeasonBoundAllocations,
+  pruneUnknownIds,
+} from '../../utils/build/seasonMigration'
 import {
   addProfile as storeAddProfile,
   commitProfileSnapshot as storeCommitProfile,
@@ -19,6 +22,7 @@ import {
   duplicateProfile as storeDuplicateProfile,
   getSavedBuild,
   loadProfileSnapshot,
+  migrateBuildProfilesToSeason as storeMigrateBuildProfilesToSeason,
   moveBuildToFolder as storeMoveBuildToFolder,
   removeProfile as storeRemoveProfile,
   renameProfile as storeRenameProfile,
@@ -26,7 +30,6 @@ import {
   setActiveProfile as storeSetActiveProfile,
   setBuildFavorite as storeSetBuildFavorite,
   setBuildNotes as storeSetBuildNotes,
-  setBuildSeason as storeSetBuildSeason,
   setBuildStash as storeSetBuildStash,
   setBuildTags as storeSetBuildTags,
 } from '../../utils/build/savedBuilds'
@@ -42,7 +45,32 @@ import {
   encodeBuildToShare,
 } from '../../utils/build/shareBuild'
 import { bumpSavedBuilds, emptyAllocation, snapshotPatch } from './helpers'
-import type { BuildStore } from './types'
+import {
+  captureEtherLoadout,
+  captureIncarnationLoadout,
+  captureSpecLoadout,
+  cloneEtherLoadout,
+  cloneIncarnationLoadout,
+  cloneSpecLoadout,
+  createInitialLoadoutSlots,
+  emptyEtherLoadout,
+  emptyIncarnationLoadout,
+  emptySpecLoadout,
+  normalizeLoadoutSlots,
+  syncActiveLoadout,
+} from '../../utils/build/allocationLoadouts'
+import type { BuildStore, SavedBuildProfilePatchResult } from './types'
+import { withValidOffhand } from '../../utils/tree/dualWield'
+import {
+  heroLevelFor,
+  incarnationNodeBudgetFor,
+  sanitizeHeroLevel,
+} from '../../utils/build/heroLevel'
+import {
+  DEFAULT_GEAR_OPTIMIZER_RARITY_FILTER,
+  sanitizeGearOptimizerRarityFilter,
+  sanitizeGearOptimizerThresholds,
+} from '../../types'
 
 type SavedBuildsSlice = Pick<
   BuildStore,
@@ -58,6 +86,7 @@ type SavedBuildsSlice = Pick<
   | 'exportBuildSnapshot'
   | 'importBuildSnapshot'
   | 'importCodeToLibrary'
+  | 'patchSavedBuildProfile'
   | 'detachFromBuild'
   | 'resetBuild'
   | 'loadSavedBuild'
@@ -126,6 +155,7 @@ export const createSavedBuildsSlice: StateCreator<
     return {
       classId: s.classId,
       level: s.level,
+      heroLevel: s.heroLevel,
       allocated: s.allocated,
       inventory: s.inventory,
       skillRanks: s.skillRanks,
@@ -145,10 +175,37 @@ export const createSavedBuildsSlice: StateCreator<
       entityRates: s.entityRates,
       customStats: s.customStats,
       allocatedEtherNodes: s.allocatedEtherNodes,
+      specLoadouts: syncActiveLoadout(
+        s.specLoadouts,
+        s.activeSpecLoadoutIndex,
+        captureSpecLoadout(s),
+        cloneSpecLoadout,
+      ),
+      activeSpecLoadoutIndex: s.activeSpecLoadoutIndex,
+      incarnationLoadouts: syncActiveLoadout(
+        s.incarnationLoadouts,
+        s.activeIncarnationLoadoutIndex,
+        captureIncarnationLoadout(s),
+        cloneIncarnationLoadout,
+      ),
+      activeIncarnationLoadoutIndex: s.activeIncarnationLoadoutIndex,
+      etherLoadouts: syncActiveLoadout(
+        s.etherLoadouts,
+        s.activeEtherLoadoutIndex,
+        captureEtherLoadout(s),
+        cloneEtherLoadout,
+      ),
+      activeEtherLoadoutIndex: s.activeEtherLoadoutIndex,
       mercClassId: s.mercClassId,
       mercSkillRanks: s.mercSkillRanks,
       mercInventory: s.mercInventory,
       mercDisabledAuras: s.mercDisabledAuras,
+      gearOptimizerThresholds: sanitizeGearOptimizerThresholds(
+        s.gearOptimizerThresholds,
+      ),
+      gearOptimizerRarityFilter: sanitizeGearOptimizerRarityFilter(
+        s.gearOptimizerRarityFilter,
+      ),
     }
   },
 
@@ -162,7 +219,7 @@ export const createSavedBuildsSlice: StateCreator<
     }))
   },
 
-  importCodeToLibrary: (code) => {
+  importCodeToLibrary: (code, name) => {
     const decoded = decodeShareToBuild(code)
     if (!decoded) return null
     return guardStorage<SavedBuild | null>(
@@ -170,19 +227,169 @@ export const createSavedBuildsSlice: StateCreator<
       null,
       () => {
         const cls = classes.find((c) => c.id === decoded.snapshot.classId)
+        const requestedName = name?.trim().slice(0, 500)
         const record = storeCreateBuild(
-          `Imported ${cls?.name ?? 'build'}`,
+          requestedName || `Imported ${cls?.name ?? 'build'}`,
           decoded.snapshot,
           undefined,
           decoded.notes,
           null,
           decoded.season,
+          [],
+          code,
         )
         bumpSavedBuilds(set)
         return record
       },
     )
   },
+
+  patchSavedBuildProfile: (
+    buildId,
+    profileId,
+    patch,
+    expectedSeason,
+    expectedRevision,
+  ) =>
+    guardStorage<SavedBuildProfilePatchResult>(
+      (m) => set({ storageError: m }),
+      'rejected',
+      () => {
+        const targetBuild = getSavedBuild(buildId)
+        const targetProfile = targetBuild?.profiles.find(
+          (profile) => profile.id === profileId,
+        )
+        if (!targetBuild || !targetProfile) return 'rejected'
+        if (
+          targetBuild.activeProfileId !== profileId ||
+          targetBuild.season !== expectedSeason ||
+          expectedSeason !== activeSeasonId ||
+          targetProfile.updatedAt !== expectedRevision
+        ) {
+          return 'conflict'
+        }
+        const current = get()
+        const isActive =
+          current.activeBuildId === buildId &&
+          current.activeProfileId === profileId
+        const rawBase = isActive
+          ? current.exportBuildSnapshot()
+          : loadProfileSnapshot(buildId, profileId)
+        if (!rawBase) return 'rejected'
+        const base = pruneUnknownIds(rawBase)
+
+        const incarnationBank = normalizeLoadoutSlots(
+          base.incarnationLoadouts,
+          base.activeIncarnationLoadoutIndex,
+          captureIncarnationLoadout(base),
+          cloneIncarnationLoadout,
+        )
+        const etherBank = normalizeLoadoutSlots(
+          base.etherLoadouts,
+          base.activeEtherLoadoutIndex,
+          captureEtherLoadout(base),
+          cloneEtherLoadout,
+        )
+        for (const entry of patch.incarnationLoadouts ?? []) {
+          if (
+            !Number.isInteger(entry.index) ||
+            entry.index < 0 ||
+            entry.index >= incarnationBank.slots.length
+          ) {
+            return 'rejected'
+          }
+          if (!entry.loadout) {
+            incarnationBank.slots[entry.index] = null
+            continue
+          }
+          const nextLoadout = cloneIncarnationLoadout(entry.loadout)
+          const previousLoadout = incarnationBank.slots[entry.index]
+          if (previousLoadout) {
+            const previousSockets = cloneIncarnationLoadout(previousLoadout).treeSocketed
+            nextLoadout.treeSocketed = Object.fromEntries(
+              Object.entries(previousSockets).filter(([nodeId]) =>
+                nextLoadout.allocatedTreeNodes.has(Number(nodeId)),
+              ),
+            )
+          }
+          incarnationBank.slots[entry.index] = nextLoadout
+        }
+        for (const entry of patch.etherLoadouts ?? []) {
+          if (
+            !Number.isInteger(entry.index) ||
+            entry.index < 0 ||
+            entry.index >= etherBank.slots.length
+          ) {
+            return 'rejected'
+          }
+          etherBank.slots[entry.index] = entry.loadout
+            ? cloneEtherLoadout(entry.loadout)
+            : null
+        }
+        const activeIncarnationIndex =
+          patch.activeIncarnationLoadoutIndex ?? incarnationBank.activeIndex
+        const activeEtherIndex = patch.activeEtherLoadoutIndex ?? etherBank.activeIndex
+        if (
+          !Number.isInteger(activeIncarnationIndex) ||
+          activeIncarnationIndex < 0 ||
+          activeIncarnationIndex >= incarnationBank.slots.length ||
+          !Number.isInteger(activeEtherIndex) ||
+          activeEtherIndex < 0 ||
+          activeEtherIndex >= etherBank.slots.length
+        ) {
+          return 'rejected'
+        }
+        const activeIncarnation = incarnationBank.slots[activeIncarnationIndex]
+        const activeEther = etherBank.slots[activeEtherIndex]
+        if (!activeIncarnation || !activeEther) return 'rejected'
+        const incarnationBudget = incarnationNodeBudgetFor(
+          base.heroLevel === undefined
+            ? heroLevelFor(base)
+            : sanitizeHeroLevel(base.heroLevel),
+        )
+        if (
+          incarnationBank.slots.some(
+            (loadout) =>
+              loadout != null &&
+              loadout.allocatedTreeNodes.size > incarnationBudget,
+          )
+        ) {
+          return 'rejected'
+        }
+
+        const merged = {
+          ...base,
+          allocatedTreeNodes: new Set(activeIncarnation.allocatedTreeNodes),
+          treeSocketed: cloneIncarnationLoadout(activeIncarnation).treeSocketed,
+          inventory: withValidOffhand(
+            base.inventory,
+            activeIncarnation.allocatedTreeNodes,
+          ),
+          allocatedEtherNodes: new Set(activeEther.allocatedEtherNodes),
+          incarnationLoadouts: incarnationBank.slots,
+          activeIncarnationLoadoutIndex: activeIncarnationIndex,
+          etherLoadouts: etherBank.slots,
+          activeEtherLoadoutIndex: activeEtherIndex,
+          ...('mercClassId' in patch
+            ? {
+                mercClassId: patch.mercClassId ?? null,
+                mercSkillRanks: { ...(patch.mercSkillRanks ?? {}) },
+              }
+            : {}),
+        }
+        const result = storeCommitProfile(buildId, profileId, merged)
+        if (!result) return 'rejected'
+        if (isActive) {
+          set((state) => ({
+            ...snapshotPatch(merged),
+            savedBuildsVersion: state.savedBuildsVersion + 1,
+          }))
+        } else {
+          bumpSavedBuilds(set)
+        }
+        return 'applied'
+      },
+    ),
 
   detachFromBuild: () =>
     set(() => ({ activeBuildId: null, activeProfileId: null })),
@@ -191,6 +398,7 @@ export const createSavedBuildsSlice: StateCreator<
     set(() => ({
       classId: classes[0]?.id ?? null,
       level: 1,
+      heroLevel: 0,
       allocated: emptyAllocation(),
       inventory: {},
       skillRanks: {},
@@ -209,6 +417,21 @@ export const createSavedBuildsSlice: StateCreator<
       enemyResistances: defaultEnemyResistances(),
       subskillRanks: {},
       allocatedEtherNodes: new Set<number>(),
+      specLoadouts: createInitialLoadoutSlots(
+        emptySpecLoadout(),
+        cloneSpecLoadout,
+      ),
+      activeSpecLoadoutIndex: 0,
+      incarnationLoadouts: createInitialLoadoutSlots(
+        emptyIncarnationLoadout(),
+        cloneIncarnationLoadout,
+      ),
+      activeIncarnationLoadoutIndex: 0,
+      etherLoadouts: createInitialLoadoutSlots(
+        emptyEtherLoadout(),
+        cloneEtherLoadout,
+      ),
+      activeEtherLoadoutIndex: 0,
       mercClassId: null,
       mercSkillRanks: {},
       mercInventory: {},
@@ -218,6 +441,10 @@ export const createSavedBuildsSlice: StateCreator<
       notes: '',
       customStats: [],
       stash: [],
+      gearOptimizerThresholds: {},
+      gearOptimizerRarityFilter: {
+        ...DEFAULT_GEAR_OPTIMIZER_RARITY_FILTER,
+      },
     })),
 
   deleteSavedBuild: (buildId) =>
@@ -329,8 +556,31 @@ export const createSavedBuildsSlice: StateCreator<
         const s = get()
         const snap = clearSeasonBoundAllocations(s.exportBuildSnapshot())
         if (s.activeBuildId && s.activeProfileId) {
-          storeCommitProfile(s.activeBuildId, s.activeProfileId, snap)
-          storeSetBuildSeason(s.activeBuildId, season)
+          const build = getSavedBuild(s.activeBuildId)
+          if (!build) return
+          const migratedProfiles = new Map<string, ReturnType<typeof s.exportBuildSnapshot>>()
+          for (const profile of build.profiles) {
+            const profileSnapshot =
+              profile.id === s.activeProfileId
+                ? snap
+                : loadProfileSnapshot(build.id, profile.id)
+            if (!profileSnapshot) return
+            migratedProfiles.set(
+              profile.id,
+              profile.id === s.activeProfileId
+                ? profileSnapshot
+                : clearSeasonBoundAllocations(profileSnapshot),
+            )
+          }
+          if (
+            !storeMigrateBuildProfilesToSeason(
+              s.activeBuildId,
+              season,
+              migratedProfiles,
+            )
+          ) {
+            return
+          }
           reloadIntoSeason(
             season,
             PENDING_BUILD_KEY,

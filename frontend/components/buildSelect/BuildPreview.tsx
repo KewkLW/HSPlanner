@@ -125,9 +125,10 @@ export function BuildPreview({
   const color = classColor(build.classId)
   const className = meta?.className ?? cls?.name ?? 'Unknown'
   const level = preview.snapshot?.level ?? meta?.level ?? 1
-  const nodes = preview.snapshot
+  const heroLevel = preview.snapshot
     ? heroLevelFor(preview.snapshot)
-    : meta?.nodes ?? 0
+    : meta?.heroLevel ?? 0
+  const nodes = preview.snapshot?.allocatedTreeNodes.size ?? meta?.nodes ?? 0
 
   const perf = preview.performance
   const stats = perf?.stats ?? {}
@@ -220,7 +221,7 @@ export function BuildPreview({
             </div>
             <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-faint">
               <span style={{ color }}>{className}</span> · Lv {level} · Hero Lv{' '}
-              {nodes} · {build.profiles.length}P ·{' '}
+              {heroLevel} · {build.profiles.length}P ·{' '}
               <span
                 title={seasonName}
                 className={isOtherSeason ? 'text-accent-hot' : undefined}

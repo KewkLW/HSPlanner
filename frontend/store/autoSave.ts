@@ -7,6 +7,7 @@ export const AUTO_SAVE_DEBOUNCE_MS = 800
 export const SNAPSHOT_KEYS = [
   'classId',
   'level',
+  'heroLevel',
   'allocated',
   'inventory',
   'skillRanks',
@@ -26,12 +27,20 @@ export const SNAPSHOT_KEYS = [
   'entityRates',
   'customStats',
   'allocatedEtherNodes',
+  'specLoadouts',
+  'activeSpecLoadoutIndex',
+  'incarnationLoadouts',
+  'activeIncarnationLoadoutIndex',
+  'etherLoadouts',
+  'activeEtherLoadoutIndex',
   'mercClassId',
   'mercSkillRanks',
   'mercInventory',
   'mercDisabledAuras',
   'notes',
   'stash',
+  'gearOptimizerThresholds',
+  'gearOptimizerRarityFilter',
 ] as const satisfies readonly (keyof BuildStore)[]
 
 let timer: ReturnType<typeof setTimeout> | null = null

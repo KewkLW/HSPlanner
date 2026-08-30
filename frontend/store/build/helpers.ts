@@ -1,9 +1,23 @@
 import { entityRatesFrom } from '../../utils/build/entityRates'
 import { gameConfig, getClass } from '@data'
 import { defaultEnemyResistances } from '../../utils/build/shareBuild'
+import {
+  sanitizeGearOptimizerRarityFilter,
+  sanitizeGearOptimizerThresholds,
+} from '../../types'
 import type { BuildSnapshot } from '../../utils/build/shareBuild'
 import { pruneUnknownIds } from '../../utils/build/seasonMigration'
+import {
+  captureEtherLoadout,
+  captureIncarnationLoadout,
+  captureSpecLoadout,
+  cloneEtherLoadout,
+  cloneIncarnationLoadout,
+  cloneSpecLoadout,
+  normalizeLoadoutSlots,
+} from '../../utils/build/allocationLoadouts'
 import type { AttrMap, BuildState } from './types'
+import { heroLevelFor } from '../../utils/build/heroLevel'
 
 export function emptyAllocation(): AttrMap {
   return gameConfig.attributes.reduce<AttrMap>((acc, a) => {
@@ -20,9 +34,31 @@ export function bumpSavedBuilds(
 
 export function snapshotPatch(rawSnap: BuildSnapshot) {
   const snap = pruneUnknownIds(rawSnap)
+  const specBank = normalizeLoadoutSlots(
+    snap.specLoadouts,
+    snap.activeSpecLoadoutIndex,
+    captureSpecLoadout(snap),
+    cloneSpecLoadout,
+  )
+  const incarnationBank = normalizeLoadoutSlots(
+    snap.incarnationLoadouts,
+    snap.activeIncarnationLoadoutIndex,
+    captureIncarnationLoadout(snap),
+    cloneIncarnationLoadout,
+  )
+  const etherBank = normalizeLoadoutSlots(
+    snap.etherLoadouts,
+    snap.activeEtherLoadoutIndex,
+    captureEtherLoadout(snap),
+    cloneEtherLoadout,
+  )
   return {
     classId: snap.classId,
     level: snap.level,
+    heroLevel: heroLevelFor({
+      ...snap,
+      incarnationLoadouts: incarnationBank.slots,
+    }),
     allocated: snap.allocated,
     inventory: snap.inventory,
     skillRanks: snap.skillRanks,
@@ -42,10 +78,22 @@ export function snapshotPatch(rawSnap: BuildSnapshot) {
     entityRates: entityRatesFrom(snap.entityRates, snap.entityAttacksPerSecond),
     customStats: snap.customStats ?? [],
     allocatedEtherNodes: snap.allocatedEtherNodes ?? new Set<number>(),
+    specLoadouts: specBank.slots,
+    activeSpecLoadoutIndex: specBank.activeIndex,
+    incarnationLoadouts: incarnationBank.slots,
+    activeIncarnationLoadoutIndex: incarnationBank.activeIndex,
+    etherLoadouts: etherBank.slots,
+    activeEtherLoadoutIndex: etherBank.activeIndex,
     mercClassId: snap.mercClassId ?? null,
     mercSkillRanks: snap.mercSkillRanks ?? {},
     mercInventory: snap.mercInventory ?? {},
     mercDisabledAuras: snap.mercDisabledAuras ?? {},
+    gearOptimizerThresholds: sanitizeGearOptimizerThresholds(
+      snap.gearOptimizerThresholds,
+    ),
+    gearOptimizerRarityFilter: sanitizeGearOptimizerRarityFilter(
+      snap.gearOptimizerRarityFilter,
+    ),
   }
 }
 

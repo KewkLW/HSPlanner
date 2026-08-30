@@ -11,6 +11,7 @@ import {
 } from '../../utils/item/stats'
 import { hitsPerCast } from '../../utils/skill/hitModel'
 import { synergyEffectText } from '../../utils/skill/synergyText'
+import { skillPrerequisiteIds } from '../../utils/skills/prerequisites'
 import type {
   AttributeKey,
   RangedValue,
@@ -232,6 +233,9 @@ export function SkillEffectsBlock({
   const canIncrement = allocated && currentRank < skill.maxRank
   const nextMin = canIncrement ? curMin + 1 : null
   const nextMax = canIncrement ? curMax + 1 : null
+  const prerequisiteNames = skillPrerequisiteIds(skill).map(
+    (id) => allClassSkills.find((candidate) => candidate.id === id)?.name ?? id,
+  )
 
   const rankInfo = useSkillRankInfo(
     skill,
@@ -374,7 +378,7 @@ export function SkillEffectsBlock({
     skill.effectDuration !== undefined ||
     skill.hitModel !== undefined ||
     !!skill.requiresLevel ||
-    !!skill.requiresSkill
+    skillPrerequisiteIds(skill).length > 0
 
   const hasAnything =
     passiveKeys.size > 0 ||
@@ -548,11 +552,15 @@ export function SkillEffectsBlock({
             color="text-text"
           />
         )}
-        {skill.requiresSkill && (
+        {prerequisiteNames.length > 0 && (
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-text/80">Requires skill</span>
+            <span className="text-text/80">
+              {prerequisiteNames.length === 1
+                ? 'Requires skill'
+                : 'Requires skills'}
+            </span>
             <span className="font-mono text-muted">
-              «{skill.requiresSkill}»
+              «{prerequisiteNames.join(' and ')}»
             </span>
           </div>
         )}

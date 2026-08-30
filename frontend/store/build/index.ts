@@ -4,6 +4,8 @@ import { createCharacterSlice } from './characterSlice'
 import { createCombatSlice } from './combatSlice'
 import { createEtherSlice } from './etherSlice'
 import { createInventorySlice } from './inventorySlice'
+import { createLoadoutSlice } from './loadoutSlice'
+import { createOptimizerSlice } from './optimizerSlice'
 import { createMercSlice } from './mercSlice'
 import { createSavedBuildsSlice } from './savedBuildsSlice'
 import { createSkillsSlice } from './skillsSlice'
@@ -30,10 +32,12 @@ export {
 export const useBuild = create<BuildStore>((...a) => ({
   ...createCharacterSlice(...a),
   ...createInventorySlice(...a),
+  ...createOptimizerSlice(...a),
   ...createSkillsSlice(...a),
   ...createStashSlice(...a),
   ...createTreeSlice(...a),
   ...createEtherSlice(...a),
+  ...createLoadoutSlice(...a),
   ...createMercSlice(...a),
   ...createCombatSlice(...a),
   ...createSavedBuildsSlice(...a),

@@ -111,7 +111,7 @@ export function MainSkillSection({
   return (
     <Panel title="Main Skill" meta="No main skill or weapon">
       <div className="py-6 text-center text-xs text-muted italic">
-        Pick a main skill in the Skills tab, or equip a weapon, to see your
+        Pick a main skill in the Spec tab, or equip a weapon, to see your
         headline damage breakdown here.
       </div>
     </Panel>

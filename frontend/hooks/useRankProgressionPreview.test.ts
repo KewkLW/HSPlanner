@@ -4,11 +4,11 @@ import { useRankProgressionPreview } from './useRankProgressionPreview'
 
 function setup(
   ranks: Record<string, number>,
-  requires?: (id: string) => string | undefined,
+  requiresAllOf?: (id: string) => string | readonly string[] | undefined,
 ) {
   return renderHook(
     ({ r }: { r: Record<string, number> }) =>
-      useRankProgressionPreview(r, requires),
+      useRankProgressionPreview(r, requiresAllOf),
     { initialProps: { r: ranks } },
   )
 }
@@ -60,6 +60,18 @@ describe('useRankProgressionPreview', () => {
 
     act(() => result.current.setProgressStep(3))
     expect(result.current.markerId).toBe('c')
+  })
+
+  it('places the child after every allocated prerequisite', () => {
+    const ranks = { child: 1, left: 1, right: 1 }
+    const requiresAllOf = (id: string): readonly string[] =>
+      id === 'child' ? ['left', 'right'] : []
+    const { result } = setup(ranks, requiresAllOf)
+
+    act(() => result.current.setProgressStep(2))
+
+    expect(result.current.visibleRanks).toEqual({ left: 1, right: 1 })
+    expect(result.current.markerId).toBe('right')
   })
 
   it('computes total as the sum of all ranks regardless of preview step', () => {

@@ -36,7 +36,7 @@ const SOURCE_LABEL: Record<SourceType, string> = {
   skill: 'Skill',
   subskill: 'Subtree',
   custom: 'Config',
-  tree: 'Tree',
+  tree: 'Incarnation',
 }
 
 const FORGE_COLOR: Record<ForgeKind, string> = {

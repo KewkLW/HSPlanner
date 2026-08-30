@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand'
-import { getItem } from '@data'
+import { getItem, isGearSlot } from '@data'
 import { withValidOffhand } from '../../utils/tree/dualWield'
 import * as itemEdits from '../../views/gear/lib/itemEdits'
 import type { BuildStore } from './types'
@@ -12,6 +12,7 @@ type InventorySlice = Pick<
   | 'equipItem'
   | 'unequipItem'
   | 'commitEquippedItem'
+  | 'applyOptimizedGear'
   | 'setSocketCount'
   | 'setSocketed'
   | 'setSocketType'
@@ -70,6 +71,22 @@ export const createInventorySlice: StateCreator<
       if (!base) return s
       const next = { ...s.inventory, [slot]: item }
       return { inventory: withValidOffhand(next, s.allocatedTreeNodes) }
+    })
+  },
+
+  applyOptimizedGear: (baseIds) => {
+    set((s) => {
+      const next = Object.fromEntries(
+        Object.entries(s.inventory).filter(([slot]) => !isGearSlot(slot)),
+      )
+      for (const [slot, baseId] of Object.entries(baseIds)) {
+        if (!isGearSlot(slot)) continue
+        const item = itemEdits.makeEquippedItem(baseId)
+        if (item) next[slot] = item
+      }
+      return {
+        inventory: withValidOffhand(next, s.allocatedTreeNodes),
+      }
     })
   },
 

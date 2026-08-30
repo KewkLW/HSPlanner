@@ -85,6 +85,9 @@ export interface Skill {
   description?: string
   maxRank: number
   requiresLevel?: number
+  /** Direct parents; every listed skill must have at least one point. */
+  requiresAllOf?: string[]
+  /** @deprecated Legacy single-parent form. Prefer requiresAllOf. */
   requiresSkill?: string
   ranks: SkillRank[]
   damageType?: DamageType

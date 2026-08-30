@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, motion } from "motion/react";
 import { EASE_OUT, hoverTap, viewVariants } from "./utils/motion";
 import BottomBar from "./components/app/BottomBar";
+import AllocationLoadoutBar from "./components/app/AllocationLoadoutBar";
 import BuildsMenu from "./components/app/BuildsMenu";
 import { AUTO_OPEN_KEY, BuildSelect } from "./components/buildSelect";
 import { DeepLinkPrompt, type DeepLinkPromptState } from "./components/app/DeepLinkPrompt";
@@ -26,8 +27,18 @@ import { useBuild } from "./store/build";
 import { initUndoHistory, redoLastChange, undoLastChange } from "./store/undoHistory";
 import { initShiftScroll } from "./utils/shiftScroll";
 import { createDeepLinkDispatcher, getInitialDeepLinkUrls } from "./utils/build/deepLink";
-import { listSavedBuilds } from "./utils/build/savedBuilds";
-import { decodeShareToBuild, type DecodedShare } from "./utils/build/shareBuild";
+import {
+  getSavedBuild,
+  listSavedBuilds,
+  loadProfileSnapshot,
+} from "./utils/build/savedBuilds";
+import { parseLocalBuildPatch } from "./utils/build/localBuildPatch";
+import {
+  decodeShareToBuild,
+  encodeBuildToShare,
+  type BuildSnapshot,
+  type DecodedShare,
+} from "./utils/build/shareBuild";
 import { spriteBootProgress, warmupBootProgress } from "./utils/bootProgress";
 import { preloadSprites } from "./utils/preloadAssets";
 import { readStorage, readStorageWithLegacy, removeStorage, writeStorage } from "./utils/storage";
@@ -53,9 +64,9 @@ declare global {
 
 const SECTIONS = [
   { id: "character", label: "Character", view: CharacterView },
-  { id: "tree", label: "Tree", view: TreeView },
+  { id: "skills", label: "Spec", view: SkillsView },
+  { id: "tree", label: "Incarnation", view: TreeView },
   { id: "ether", label: "Ether", view: EtherView },
-  { id: "skills", label: "Skills", view: SkillsView },
   { id: "gear", label: "Gear", view: GearView },
   { id: "merc", label: "Merc", view: MercView },
   { id: "stats", label: "Stats", view: StatsView },
@@ -71,6 +82,312 @@ type Screen = "library" | "planner";
 const SECTION_KEY = "hsplanner.activeSection.v1";
 const LEGACY_SECTION_KEY = "heroplanner.activeSection.v1";
 const SECTION_IDS = new Set<Section>(SECTIONS.map((s) => s.id));
+
+function localPatchSnapshotDetails(snapshot: BuildSnapshot) {
+  return {
+    inventory: snapshot.inventory,
+    gearSlots: Object.keys(snapshot.inventory).length,
+    incarnationNodes: snapshot.incarnationLoadouts?.map((loadout) =>
+      loadout
+        ? [...loadout.allocatedTreeNodes].sort((a, b) => a - b)
+        : null,
+    ),
+    incarnationSockets: snapshot.incarnationLoadouts?.map(
+      (loadout) => loadout?.treeSocketed ?? null,
+    ),
+    activeIncarnationLoadoutIndex: snapshot.activeIncarnationLoadoutIndex,
+    etherNodes: snapshot.etherLoadouts?.map((loadout) =>
+      loadout
+        ? [...loadout.allocatedEtherNodes].sort((a, b) => a - b)
+        : null,
+    ),
+    activeEtherLoadoutIndex: snapshot.activeEtherLoadoutIndex,
+    mercClassId: snapshot.mercClassId,
+    mercSkillRanks: snapshot.mercSkillRanks,
+    mercSkillPoints: Object.values(snapshot.mercSkillRanks).reduce(
+      (sum, rank) => sum + rank,
+      0,
+    ),
+  };
+}
+
+function registerHeadlessBuildImporter() {
+  const hot = import.meta.hot;
+  if (!hot) return;
+  const registerEvent = "hsplanner:register-import-client";
+  const unregisterEvent = "hsplanner:unregister-import-client";
+  const importEvent = "hsplanner:import-build";
+  const resultEvent = "hsplanner:import-build-result";
+  const registrationId = crypto.randomUUID();
+  let registered = false;
+  let disposed = false;
+  const onImport = (raw: unknown) => {
+    const payload = raw as {
+      requestId?: unknown;
+      operation?: unknown;
+      code?: unknown;
+      name?: unknown;
+      buildId?: unknown;
+      profileId?: unknown;
+      season?: unknown;
+      patch?: unknown;
+      dryRun?: unknown;
+      expectedRevision?: unknown;
+    };
+    if (typeof payload?.requestId !== "string") return;
+    try {
+      const operation = payload.operation ?? "import";
+      if (operation === "patch") {
+        if (
+          typeof payload.buildId !== "string" ||
+          typeof payload.profileId !== "string" ||
+          typeof payload.season !== "string" ||
+          typeof payload.dryRun !== "boolean"
+        ) {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: false,
+            error: "patch requires buildId, profileId, season, and dryRun",
+          });
+          return;
+        }
+        const build = getSavedBuild(payload.buildId);
+        const profile = build?.profiles.find(
+          (candidate) => candidate.id === payload.profileId,
+        );
+        if (!build || !profile) {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: false,
+            error: "target build/profile was not found",
+          });
+          return;
+        }
+        if (
+          build.activeProfileId !== profile.id ||
+          build.season !== activeSeasonId ||
+          payload.season !== activeSeasonId
+        ) {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: false,
+            error: "patch target must be the active profile in the loaded season",
+          });
+          return;
+        }
+        const patch = parseLocalBuildPatch(payload.patch);
+        const state = useBuild.getState();
+        const currentSnapshot =
+          state.activeBuildId === build.id &&
+          state.activeProfileId === profile.id
+            ? state.exportBuildSnapshot()
+            : loadProfileSnapshot(build.id, profile.id);
+        if (!currentSnapshot) {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: false,
+            error: "could not read the target profile",
+          });
+          return;
+        }
+        if (payload.dryRun) {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: true,
+            dryRun: true,
+            buildId: build.id,
+            profileId: profile.id,
+            name: build.name,
+            profileName: profile.name,
+            season: build.season,
+            revision: profile.updatedAt,
+            buildCount: listSavedBuilds().length,
+            ...localPatchSnapshotDetails(currentSnapshot),
+          });
+          return;
+        }
+        if (
+          typeof payload.expectedRevision !== "string" ||
+          payload.expectedRevision !== profile.updatedAt
+        ) {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: false,
+            conflict: true,
+            error: "target profile changed after dry-run; retry the patch",
+          });
+          return;
+        }
+        const patched = useBuild
+          .getState()
+          .patchSavedBuildProfile(
+            build.id,
+            profile.id,
+            patch,
+            payload.season,
+            payload.expectedRevision,
+          );
+        if (patched === "conflict") {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: false,
+            conflict: true,
+            error: "target profile changed after dry-run; retry the patch",
+          });
+          return;
+        }
+        if (patched !== "applied") {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: false,
+            error: "could not patch the saved profile",
+          });
+          return;
+        }
+        const updatedBuild = getSavedBuild(build.id);
+        const updatedProfile = updatedBuild?.profiles.find(
+          (candidate) => candidate.id === profile.id,
+        );
+        const updatedSnapshot = loadProfileSnapshot(build.id, profile.id);
+        if (!updatedBuild || !updatedProfile || !updatedSnapshot) {
+          hot.send(resultEvent, {
+            requestId: payload.requestId,
+            ok: false,
+            error: "could not patch the saved profile",
+          });
+          return;
+        }
+        hot.send(resultEvent, {
+          requestId: payload.requestId,
+          ok: true,
+          dryRun: false,
+          buildId: updatedBuild.id,
+          profileId: updatedProfile.id,
+          name: updatedBuild.name,
+          profileName: updatedProfile.name,
+          season: updatedBuild.season,
+          revision: updatedProfile.updatedAt,
+          buildCount: listSavedBuilds().length,
+          ...localPatchSnapshotDetails(updatedSnapshot),
+        });
+        return;
+      }
+      if (operation !== "import" || typeof payload.code !== "string") {
+        hot.send(resultEvent, {
+          requestId: payload.requestId,
+          ok: false,
+          error: "unsupported build bridge operation",
+        });
+        return;
+      }
+      const requestedName =
+        typeof payload.name === "string"
+          ? payload.name.trim().slice(0, 500)
+          : "";
+      const decoded = decodeShareToBuild(payload.code);
+      if (!decoded) {
+        hot.send(resultEvent, {
+          requestId: payload.requestId,
+          ok: false,
+          error: "invalid build code",
+        });
+        return;
+      }
+
+      // New imports preserve the validated source code. The canonical fallback
+      // recognizes builds created by older importer revisions that re-encoded it.
+      const canonicalCode = encodeBuildToShare(
+        decoded.snapshot,
+        undefined,
+        decoded.season,
+      );
+      const existing = listSavedBuilds().find(
+        (build) =>
+          build.notes === decoded.notes &&
+          build.season === decoded.season &&
+          build.profiles.some((profile) => {
+            if (profile.code === payload.code) return true;
+            const stored = decodeShareToBuild(profile.code);
+            return (
+              stored !== null &&
+              encodeBuildToShare(
+                stored.snapshot,
+                undefined,
+                decoded.season,
+              ) === canonicalCode
+            );
+          }),
+      );
+      if (existing) {
+        let existingName = existing.name;
+        if (requestedName && existing.name !== requestedName) {
+          const renamed = useBuild
+            .getState()
+            .renameSavedBuild(existing.id, requestedName);
+          if (!renamed) {
+            hot.send(resultEvent, {
+              requestId: payload.requestId,
+              ok: false,
+              error: "build exists but could not be renamed",
+            });
+            return;
+          }
+          existingName = requestedName;
+        }
+        hot.send(resultEvent, {
+          requestId: payload.requestId,
+          ok: true,
+          buildId: existing.id,
+          name: existingName,
+          deduplicated: true,
+        });
+        return;
+      }
+
+      const record = useBuild
+        .getState()
+        .importCodeToLibrary(payload.code, requestedName || undefined);
+      if (!record) {
+        hot.send(resultEvent, {
+          requestId: payload.requestId,
+          ok: false,
+          error: "could not save build",
+        });
+        return;
+      }
+      hot.send(resultEvent, {
+        requestId: payload.requestId,
+        ok: true,
+        buildId: record.id,
+        name: record.name,
+      });
+    } catch (error) {
+      hot.send(resultEvent, {
+        requestId: payload.requestId,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  hot.on(importEvent, onImport);
+  void invoke<string>("dev_import_token")
+    .then((token) => {
+      if (disposed) return;
+      hot.send(registerEvent, { registrationId, token });
+      registered = true;
+    })
+    .catch(() => {
+      // The bridge is intentionally unavailable outside a debug Tauri WebView.
+    });
+  hot.dispose(() => {
+    disposed = true;
+    if (registered) hot.send(unregisterEvent, { registrationId });
+    hot.off(importEvent, onImport);
+  });
+}
+
+registerHeadlessBuildImporter();
 
 function readInitialSection(): Section {
   const stored = readStorageWithLegacy(SECTION_KEY, LEGACY_SECTION_KEY);
@@ -242,7 +559,48 @@ function App() {
   const ActiveView = SECTIONS.find((s) => s.id === section)?.view ?? TreeView;
   const classId = useBuild((s) => s.classId);
   const activeBuildId = useBuild((s) => s.activeBuildId);
+  const specLoadouts = useBuild((s) => s.specLoadouts);
+  const activeSpecLoadoutIndex = useBuild((s) => s.activeSpecLoadoutIndex);
+  const createSpecLoadout = useBuild((s) => s.createSpecLoadout);
+  const switchSpecLoadout = useBuild((s) => s.switchSpecLoadout);
+  const incarnationLoadouts = useBuild((s) => s.incarnationLoadouts);
+  const activeIncarnationLoadoutIndex = useBuild(
+    (s) => s.activeIncarnationLoadoutIndex,
+  );
+  const createIncarnationLoadout = useBuild((s) => s.createIncarnationLoadout);
+  const switchIncarnationLoadout = useBuild((s) => s.switchIncarnationLoadout);
+  const etherLoadouts = useBuild((s) => s.etherLoadouts);
+  const activeEtherLoadoutIndex = useBuild((s) => s.activeEtherLoadoutIndex);
+  const createEtherLoadout = useBuild((s) => s.createEtherLoadout);
+  const switchEtherLoadout = useBuild((s) => s.switchEtherLoadout);
   const cls = classId ? getClass(classId) : undefined;
+
+  const allocationLoadoutBar =
+    section === "skills" ? (
+      <AllocationLoadoutBar
+        label="Spec"
+        slots={specLoadouts}
+        activeIndex={activeSpecLoadoutIndex}
+        onCreate={createSpecLoadout}
+        onSelect={switchSpecLoadout}
+      />
+    ) : section === "tree" ? (
+      <AllocationLoadoutBar
+        label="Incarnation"
+        slots={incarnationLoadouts}
+        activeIndex={activeIncarnationLoadoutIndex}
+        onCreate={createIncarnationLoadout}
+        onSelect={switchIncarnationLoadout}
+      />
+    ) : section === "ether" ? (
+      <AllocationLoadoutBar
+        label="Ether"
+        slots={etherLoadouts}
+        activeIndex={activeEtherLoadoutIndex}
+        onCreate={createEtherLoadout}
+        onSelect={switchEtherLoadout}
+      />
+    ) : null;
 
   const needsScroll =
     section !== "tree" && section !== "skills" && section !== "ether";
@@ -413,9 +771,22 @@ function App() {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="h-full"
+                className={
+                  allocationLoadoutBar
+                    ? "flex h-full min-h-0 flex-col"
+                    : "h-full"
+                }
               >
-                <ActiveView />
+                {allocationLoadoutBar ? (
+                  <>
+                    {allocationLoadoutBar}
+                    <div className="min-h-0 flex-1">
+                      <ActiveView />
+                    </div>
+                  </>
+                ) : (
+                  <ActiveView />
+                )}
               </motion.div>
             </AnimatePresence>
           </main>

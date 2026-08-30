@@ -1,15 +1,26 @@
 import type { StateCreator } from 'zustand'
 import { classes, gameConfig } from '@data'
 import { attrPointsFor, emptyAllocation } from './helpers'
+import {
+  maxAllocatedIncarnationNodes,
+  sanitizeHeroLevel,
+} from '../../utils/build/heroLevel'
+import {
+  cloneSpecLoadout,
+  createInitialLoadoutSlots,
+  emptySpecLoadout,
+} from '../../utils/build/allocationLoadouts'
 import type { BuildStore } from './types'
 
 type CharacterSlice = Pick<
   BuildStore,
   | 'classId'
   | 'level'
+  | 'heroLevel'
   | 'allocated'
   | 'setClass'
   | 'setLevel'
+  | 'setHeroLevel'
   | 'incAttr'
   | 'decAttr'
   | 'resetAttrs'
@@ -23,6 +34,7 @@ export const createCharacterSlice: StateCreator<
 > = (set, get) => ({
   classId: classes[0]?.id ?? null,
   level: 1,
+  heroLevel: 0,
   allocated: emptyAllocation(),
 
   // class-bound state resets, but the saved-build binding (and its notes) must survive
@@ -40,6 +52,16 @@ export const createCharacterSlice: StateCreator<
         subskillRanks: {},
         treeSocketed: {},
         skillProjectiles: {},
+        specLoadouts: createInitialLoadoutSlots(
+          emptySpecLoadout(),
+          cloneSpecLoadout,
+        ),
+        activeSpecLoadoutIndex: 0,
+        incarnationLoadouts: s.incarnationLoadouts.map((loadout) =>
+          loadout == null
+            ? null
+            : { ...loadout, treeSocketed: {} },
+        ),
       }
     }),
 
@@ -47,6 +69,17 @@ export const createCharacterSlice: StateCreator<
     const clamped = Math.max(1, Math.min(gameConfig.maxCharacterLevel, lvl))
     set({ level: clamped })
   },
+
+  setHeroLevel: (lvl) =>
+    set((state) => ({
+      // Hero Level only rises in-game. Do not let an edit silently make an
+      // occupied alternate Incarnation loadout illegal; reset those nodes
+      // first when a lower planning level is desired.
+      heroLevel: Math.max(
+        sanitizeHeroLevel(lvl),
+        maxAllocatedIncarnationNodes(state),
+      ),
+    })),
 
   incAttr: (key, amount = 1) => {
     const { allocated, level } = get()

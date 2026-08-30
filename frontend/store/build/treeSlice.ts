@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand'
 import { ADJ, findPath, reachableFromAny, START_IDS } from '../../utils/tree/treeGraph'
 import { preserveOrder } from '../../utils/tree/progressionOrder'
 import { withValidOffhand } from '../../utils/tree/dualWield'
+import { incarnationNodeBudgetFor } from '../../utils/build/heroLevel'
 import type { BuildStore } from './types'
 
 type TreeSlice = Pick<
@@ -41,6 +42,7 @@ export const createTreeSlice: StateCreator<
       if (!path) return s
       const next = new Set(cur)
       for (const id of path) next.add(id)
+      if (next.size > incarnationNodeBudgetFor(s.heroLevel)) return s
       return { allocatedTreeNodes: next }
     }),
 
@@ -60,6 +62,7 @@ export const createTreeSlice: StateCreator<
         }
       }
       const reachable = reachableFromAny(START_IDS, next)
+      if (reachable.size > incarnationNodeBudgetFor(s.heroLevel)) return s
       return { allocatedTreeNodes: preserveOrder(s.allocatedTreeNodes, reachable) }
     }),
 

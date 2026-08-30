@@ -30,6 +30,7 @@ import starScalingJson from './star-scaling.json'
 import affixTagsJson from './affix-tags.json'
 import affixPoolsJson from './affix-pools.json'
 import subskillTagsJson from './subskill-tags.json'
+import s10SkillPrerequisitesJson from './seasons/s10/skill-prerequisites.json'
 import { resolveActiveSeasonId } from './seasons/registry'
 import { loadSeasonPatchSet } from './seasons/load'
 import {
@@ -184,7 +185,31 @@ function collectFlat<T>(modules: Record<string, { default: T[] }>): T[] {
 }
 
 export const classes: CharacterClass[] = patchedList(collectScalar(classModules), seasonPatches.classes, 'classes')
-export const skills: Skill[] = patchedList(collectFlat(skillModules), seasonPatches.skills, 'skills')
+const patchedSkills: Skill[] = patchedList(
+  collectFlat(skillModules),
+  seasonPatches.skills,
+  'skills',
+)
+
+export type SkillPrerequisiteMap = Record<string, string[]>
+
+export function applySkillPrerequisites(
+  source: Skill[],
+  prerequisites: SkillPrerequisiteMap,
+): Skill[] {
+  return source.map((skill) => {
+    const requiresAllOf = prerequisites[skill.id]
+    return requiresAllOf?.length ? { ...skill, requiresAllOf } : skill
+  })
+}
+
+export const skills: Skill[] =
+  activeSeasonId === 's10'
+    ? applySkillPrerequisites(
+        patchedSkills,
+        s10SkillPrerequisitesJson as SkillPrerequisiteMap,
+      )
+    : patchedSkills
 export const items: ItemBase[] = patchedList(collectFlat(itemModules), seasonPatches.items, 'items')
 export const gems: Gem[] = patchedList(collectFlat(gemModules), seasonPatches.gems, 'gems')
 export const runes: Rune[] = patchedList(collectFlat(runeModules), seasonPatches.runes, 'runes')

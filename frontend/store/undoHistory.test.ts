@@ -6,6 +6,7 @@ describe('undo history', () => {
   let dispose: () => void
 
   beforeEach(() => {
+    useBuild.getState().resetBuild()
     useBuild.setState({ level: 1, activeBuildId: null, activeProfileId: null })
     dispose = initUndoHistory()
   })
@@ -47,6 +48,17 @@ describe('undo history', () => {
     useBuild.setState({ activeBuildId: 'other-build' })
 
     expect(undoLastChange()).toBe(false)
+  })
+
+  it('treats loadout selection as navigation and never undoes across it', () => {
+    useBuild.getState().setLevel(10)
+    useBuild.getState().createSpecLoadout(1)
+
+    expect(undoLastChange()).toBe(false)
+
+    useBuild.getState().setLevel(20)
+    expect(undoLastChange()).toBe(true)
+    expect(useBuild.getState().level).toBe(10)
   })
 
   it('redoes an undone change', () => {

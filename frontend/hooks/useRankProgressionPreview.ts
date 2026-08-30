@@ -12,13 +12,13 @@ export interface RankProgressionPreview {
 
 export function useRankProgressionPreview(
   ranks: Record<string, number>,
-  requires?: (id: string) => string | undefined,
+  requiresAllOf?: (id: string) => string | readonly string[] | undefined,
 ): RankProgressionPreview {
   const [progressStep, setProgressStep] = useState<number | null>(null)
 
   const pointOrder = useMemo(
-    () => rankPointOrder(ranks, requires),
-    [ranks, requires],
+    () => rankPointOrder(ranks, requiresAllOf),
+    [ranks, requiresAllOf],
   )
 
   const total = useMemo(

@@ -37,6 +37,7 @@ function buildClickPlan(
 
 beforeEach(() => {
   useBuild.setState({
+    heroLevel: 200,
     allocatedTreeNodes: new Set<number>(),
     allocatedEtherNodes: new Set<number>(),
     treeSocketed: {},

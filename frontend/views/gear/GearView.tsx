@@ -12,6 +12,7 @@ import { EquipmentDoll } from './EquipmentDoll'
 import { GearSlotModal } from './GearSlotModal'
 import { StashSection } from './StashSection'
 import { UpgradeAdvisor } from './UpgradeAdvisor'
+import { GearOptimizer } from './GearOptimizer'
 
 export default function GearView() {
   const inventory = useBuild((s) => s.inventory)
@@ -88,6 +89,8 @@ export default function GearView() {
           </div>
         </div>
       </header>
+
+      <GearOptimizer />
 
       <UpgradeAdvisor onPickSlot={(slot) => setActiveSlot(slot)} />
 
