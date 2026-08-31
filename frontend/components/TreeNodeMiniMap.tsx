@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import treeBackground from '../assets/atlas/Incarnation_Background.png'
+import treeBackground from '../assets/atlas/Incarnation_Brick_Background.png'
 import { useBuild } from '../store/build'
 import { ADJ } from '../utils/tree/treeGraph'
 import {

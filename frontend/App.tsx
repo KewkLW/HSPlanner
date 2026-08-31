@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { EASE_OUT, hoverTap, viewVariants } from "./utils/motion";
 import BottomBar from "./components/app/BottomBar";
 import AllocationLoadoutBar from "./components/app/AllocationLoadoutBar";
@@ -764,31 +764,28 @@ function App() {
             data-tour="view"
             className={`flex-1 min-w-0 ${needsScroll ? "overflow-auto p-6" : "overflow-hidden"}`}
           >
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={section}
-                variants={viewVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                className={
-                  allocationLoadoutBar
-                    ? "flex h-full min-h-0 flex-col"
-                    : "h-full"
-                }
-              >
-                {allocationLoadoutBar ? (
-                  <>
-                    {allocationLoadoutBar}
-                    <div className="min-h-0 flex-1">
-                      <ActiveView />
-                    </div>
-                  </>
-                ) : (
-                  <ActiveView />
-                )}
-              </motion.div>
-            </AnimatePresence>
+            <motion.div
+              key={section}
+              variants={viewVariants}
+              initial="initial"
+              animate="animate"
+              className={
+                allocationLoadoutBar
+                  ? "flex h-full min-h-0 flex-col"
+                  : "h-full"
+              }
+            >
+              {allocationLoadoutBar ? (
+                <>
+                  {allocationLoadoutBar}
+                  <div className="min-h-0 flex-1">
+                    <ActiveView />
+                  </div>
+                </>
+              ) : (
+                <ActiveView />
+              )}
+            </motion.div>
           </main>
         </div>
 

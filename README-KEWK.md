@@ -93,6 +93,14 @@ Ether alone uses the purple cosmic background. The data routes were already
 separate; this corrects the misleading shared background and makes the two
 views immediately distinguishable.
 
+Section changes now remove the outgoing view synchronously before animating the
+incoming one. This prevents the old Ether surface from remaining visible after
+the Incarnation tab has already become active. Incarnation node mini-maps also
+use the same dark brick field instead of Ether's starfield. An app-level
+regression locks the first four tabs to **Character → Spec → Incarnation →
+Ether** and verifies that Spec, Incarnation, and Ether each render their own view
+and matching loadout bank.
+
 ## Spell-damage gear optimizer
 
 The Gear tab now has a native optimizer for the ten regular equipment slots. It
