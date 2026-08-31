@@ -1,10 +1,39 @@
 <img width="1600" height="360" alt="wordmark-1600" src="https://github.com/user-attachments/assets/fe4fd4b3-a475-438a-a87e-53fd8080632d" />
 
+## KewkLW Season 10 enhancements
+
+This fork's `feature/s10-planner-enhancements` branch adds the complete set of
+KewkLW planner work on top of upstream HSPlanner `1.0.5`:
+
+| Area | Changes in this fork |
+|---|---|
+| Spec, Incarnation, and Ether loadouts | Eight independent numbered slots for each allocation domain, with exact-slot creation, switching, reset boundaries, autosave, Profiles, imports, and schema-v2 share-code persistence |
+| Incarnation limits and identity | Explicit Hero Level state; one Incarnation point per Hero Level; cap enforcement across clicks, completed paths, suggestions, patches, saves, and all eight loadouts; correct Character → Spec → Incarnation → Ether navigation and distinct brick/cosmic surfaces |
+| Gear optimizer | Native selected-spell equipment search with rarity rules, optional attribute/stat/resistance minimums, progress, before/after comparison, and an explicit apply action |
+| Upgrade advisor | Repaired **Scan for upgrades** targeting so it uses the configured damaging spell or the first supported allocated damaging spell |
+| Season 10 skill rules | Complete prerequisite graph for all 24 classes and 48 class-specific trees: 264 constrained skills, 277 direct links, 13 two-parent gates, recursive descendant cleanup, and client-confirmed AND semantics |
+| Skill interaction | Left-click allocation on spell icons, keyboard support, consistent locked/max/no-points behavior, accurate prerequisite text/connectors, and reliable names when hovering allocated skills |
+| Skill layouts | Current Bard and Prophet placement corrections plus the screenshot-backed nine-skill Jötunn layout and its six prerequisite connectors |
+| Build import and patching | Authenticated development-only JSON importer plus revision-checked, allow-listed in-place profile patches for Incarnation, Ether, and mercenary allocations |
+| Frost Orb profile | Screenshot-transcribed Jötunn gear, 14 Pristine Sapphires, Tombstone runes, two 53-node Incarnation presets, two Ether presets, and the photographed 100-point Magister setup |
+| Data and stat correctness | Affix stat-key repairs, effective-resistance display fixes, Incarnation/Ether view-identity corrections, offhand legality revalidation, and targeted regressions |
+| Verification | ESLint, the TypeScript/Vite production build, Rust `cargo check`, 129 Vitest files / 1,104 tests, and the patch-helper tests pass |
+
+See **[README-KEWK.md](README-KEWK.md)** for the cumulative, detailed record
+of every added behavior, persistence rule, implementation boundary, imported
+payload, known limitation, and verification result.
+
+The upstream project overview, release links, installation instructions, and
+general feature documentation remain below.
+
+---
+
+## Upstream HSPlanner
 
 A desktop build planner for **Hero Siege** - a calculator for the talent tree, gear, stats, and skills.
 
-[![Release](https://img.shields.io/github/v/release/zium1337/HSPlanner)](https://github.com/zium1337/HSPlanner/releases/latest)
-[![Download](https://img.shields.io/github/v/release/zium1337/HSPlanner?label=Download)](https://github.com/zium1337/HSPlanner/releases/latest)
+[![Upstream Release](https://img.shields.io/github/v/release/HeroSiegePlanner/HSPlanner?label=Upstream%20Release)](https://github.com/HeroSiegePlanner/HSPlanner/releases/latest)
+[![Upstream Download](https://img.shields.io/github/v/release/HeroSiegePlanner/HSPlanner?label=Upstream%20Download)](https://github.com/HeroSiegePlanner/HSPlanner/releases/latest)
 
 ---
 
@@ -98,7 +127,7 @@ Across every tab:
 
 ## How to install
 
-1. Go to [latest release](https://github.com/zium1337/HSPlanner/releases/latest)
+1. Go to the [latest upstream release](https://github.com/HeroSiegePlanner/HSPlanner/releases/latest)
 2. In the **Assets** section, pick the file for your OS:
 
 | Platform | Asset |
@@ -136,7 +165,7 @@ The app is self-contained — end users do not need Node or Rust installed.
 ### Build
 
 ```bash
-git clone https://github.com/zium1337/HSPlanner.git
+git clone https://github.com/KewkLW/HSPlanner.git
 cd HSPlanner
 npm install
 npm run tauri:dev
